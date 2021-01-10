@@ -60,6 +60,7 @@ namespace Shinengine
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             pn.Set();
+            pv.Set();
             WindowHandle = new WindowInteropHelper(this).Handle;
 
             DX = new Direct2DWindow(new System.Drawing.Size((int)this.ActualWidth, (int)this.ActualHeight), WindowHandle);
@@ -96,11 +97,14 @@ namespace Shinengine
         DarkCurtain dn;
         RhythmTimer sb;
         ManualResetEvent pn = new ManualResetEvent(false);
+        ManualResetEvent pv = new ManualResetEvent(false);
+        bool ask_stop = false;
         public void StartStoryBoard(string path)
         {
             sb?.Stop();
-
-
+            ask_stop = true;
+            pv.WaitOne();
+            ask_stop = false;
             string bk = path + "\\bk.png";
             string music = path + "\\music.aac";
             string script = path + "\\script.xml";
@@ -184,20 +188,36 @@ namespace Shinengine
             };
             sb.Start();
             Title.Top();
-            new Thread(()=>
+            double time_save = 0;
+            new Thread(() =>
             {
-                AudioFramly.waveInit(WindowHandle, music_player.Out_channels, music_player.Out_sample_rate, music_player.Bit_per_sample, music_player.Out_buffer_size);
-                foreach(var i in music_player.abits)
+            pv.Reset();
+            AudioFramly.waveInit(WindowHandle, music_player.Out_channels, music_player.Out_sample_rate, music_player.Bit_per_sample, music_player.Out_buffer_size);
+            foreach (var i in music_player.abits)
+            {
+                if (!ask_stop)
                 {
                     unsafe
                     {
-                        sb.Accuracy((i?.time_base).Value);
-                        AudioFramly.waveWrite((byte*)i?.data, music_player.Out_buffer_size);
-                        Marshal.FreeHGlobal((i?.data).Value);
+                        time_save = (i?.time_base).Value;
+                          //  sb.Accuracy((i?.time_base).Value);
+                            AudioFramly.waveWrite((byte*)i?.data, music_player.Out_buffer_size);
+                        }
                     }
+                    Marshal.FreeHGlobal((i?.data).Value);
                 }
                 AudioFramly.waveClose();
-            }) { IsBackground=true}.Start();
+                pv.Set();
+            }) { IsBackground=true}.Start(); 
+            new Thread(() =>
+            {
+                while (!ask_stop)
+                {
+                    sb.Accuracy(time_save);
+                    Thread.Sleep(100);
+                }
+            })
+            { IsBackground = true }.Start();
         }
 
         private void Window_Drop(object sender, DragEventArgs e)
@@ -248,7 +268,11 @@ namespace Shinengine
             {
                 skip_beat = (int)((timeoffset - time_n) * 1000d / Timerise);
             }
-            Debug.WriteLine(time_n.ToString() + ":" + timeoffset.ToString());
+            else
+            {
+                wait_beat = (int)((time_n - timeoffset) * 1000d / Timerise);
+            }
+            //Debug.WriteLine(time_n.ToString() + ":" + timeoffset.ToString());
         }
         private void TimeToucher()
         {
@@ -979,8 +1003,7 @@ namespace Shinengine
             mask.Proc += (dc) =>
             {
                 dc.BeginDraw();
-                dc.Clear(new RawColor4(0, 0, 0, 0));
-               
+                dc.Clear(new RawColor4(0, 0, 0, 1));
                
                 var copy_Range = Range.ToList();
                 foreach (var i in copy_Range)
@@ -997,13 +1020,16 @@ namespace Shinengine
                         new SharpDX.Direct2D1.GradientStop[] 
                         { 
                             new SharpDX.Direct2D1.GradientStop 
-                            { Color = new RawColor4(0, 0, 0, 1), Position = 0f },
+                            { Color = new RawColor4(0, 0, 0, 0), Position = 0f },
                             new SharpDX.Direct2D1.GradientStop 
-                            { Color = new RawColor4(1, 1, 1, 0), Position = 1f } 
+                            { Color = new RawColor4(1, 1, 1, 1), Position = 1f } 
                         });
 
+                    dc.PushAxisAlignedClip(new RawRectangleF(i.Point.X - i.RadiusX, i.Point.Y - i.RadiusY, i.Point.X + i.RadiusX, i.Point.Y + i.RadiusY), AntialiasMode.PerPrimitive);
+                    dc.Clear(new RawColor4(0,0,0,0));
                     using (RadialGradientBrush b = new RadialGradientBrush(dc, rp, gp))
-                        dc.FillEllipse(i, b);
+                        dc.FillRectangle(new RawRectangleF(i.Point.X - i.RadiusX, i.Point.Y - i.RadiusY, i.Point.X + i.RadiusX, i.Point.Y + i.RadiusY), b);
+                    dc.PopAxisAlignedClip();
                     gp.Dispose();
                 }
                 dc.EndDraw();
@@ -1021,6 +1047,7 @@ namespace Shinengine
             var m_layer = new SharpDX.Direct2D1.Layer(dc, new SharpDX.Size2F(dc.Size.Width, dc.Size.Height));
             mask.Update();
             var output = mask.Output;
+            /*
             var m_lock = output.Lock(SharpDX.WIC.BitmapLockFlags.Write);
             for (int i=0;i< m_lock.Size.Height; i++)
             {
@@ -1036,6 +1063,7 @@ namespace Shinengine
 
             }
             m_lock.Dispose();
+            */
             var mask_per = SharpDX.Direct2D1.Bitmap.FromWicBitmap(dc, output);
             var omask = new BitmapBrush(dc, mask_per);
             LayerParameters lp = new LayerParameters()
