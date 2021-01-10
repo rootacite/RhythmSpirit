@@ -846,6 +846,15 @@ namespace ShinenginePlus.DrawableControls
             Removed?.Invoke(this, null);
         }
 
+        public void Top()
+        {
+            if (IsShowed)
+            {
+                m_rg.RenderGroup.Remove(this);
+                m_rg.RenderGroup.Add(this);
+            }
+        }
+
         public bool IsShowed
         {
             get;
