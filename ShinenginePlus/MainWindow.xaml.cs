@@ -40,6 +40,7 @@ namespace Shinengine
         public IntPtr WindowHandle = (IntPtr)0;
         public BackGroundLayer BackGround = null;
         public Direct2DWindow DX = null;
+        GroupLayer Title;
         DrawableText time_set;
         public DrawResultW DrawProc(DeviceContext dc)
         {
@@ -58,6 +59,7 @@ namespace Shinengine
         }
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
+            pn.Set();
             WindowHandle = new WindowInteropHelper(this).Handle;
 
             DX = new Direct2DWindow(new System.Drawing.Size((int)this.ActualWidth, (int)this.ActualHeight), WindowHandle);
@@ -71,31 +73,39 @@ namespace Shinengine
             };
 
             DX.DrawProc += DrawProc;
+            img = new BitmapImage("assets\\title.png");
+            bk1 = new RenderableImage(img) { Position = new System.Drawing.Point(0, 0) };
+            bk1.Size = new SharpDX.Size2(1280, 720);
+            bk1.PushTo(BackGround);
+            dn = new DarkCurtain(new System.Drawing.Size(1280, 720));
+            dn.PushTo(BackGround);
 
-            DX.Run();
+            Title = new GroupLayer(BackGround, new SharpDX.Size2(1280, 30));
+            Title.OutPutRange = new RawRectangleF(0, 0, 1280, 30);
+            Title.Color = new SharpDX.Mathematics.Interop.RawColor4(1, 1, 1, 0.35f);
 
-            time_set = new DrawableText("", "黑体",18);
+            time_set = new DrawableText("", "黑体",22);
             time_set.Color = new RawColor4(1, 0, 0, 1);
-            time_set.PushTo(BackGround);
+            time_set.PushTo(Title);
+
+            
+            DX.Run();
         }
+        RenderableImage bk1;
         BitmapImage img = null;
-        
+        DarkCurtain dn;
+        RhythmTimer sb;
+        ManualResetEvent pn = new ManualResetEvent(false);
         public void StartStoryBoard(string path)
         {
+            sb?.Stop();
+
+
             string bk = path + "\\bk.png";
             string music = path + "\\music.aac";
             string script = path + "\\script.xml";
-            RhythmTimer sb = new RhythmTimer() {};
-           
-
-
-            img = new BitmapImage(bk);
-            RenderableImage bk1 = new RenderableImage(img) { Position = new System.Drawing.Point(0, 0) };
-            bk1.Size = new SharpDX.Size2(1280,720);
-            bk1.PushTo(BackGround);
-
-            DarkCurtain dn = new DarkCurtain(new System.Drawing.Size(1280, 720));
-            dn.PushTo(BackGround);
+            sb = new RhythmTimer() {};
+            img.ReLoad(bk);
             void KP(int x, int y, Key key, string info,double speed = 1)
             {
                 speed = 60d / sb.BPM;
@@ -122,22 +132,58 @@ namespace Shinengine
 
             XDocument script_obj = XDocument.Load(script) ;
             var des = script_obj.Root.Nodes();
-            foreach(XElement i in des)
+            List<RhyStep> rs = new List<RhyStep>();
+
+            foreach (XElement i in des)
             {
                 if (i.Name == "head")
                 {
                     sb.BPM = Convert.ToInt32(i.Attribute("BPM").Value.ToString(), 10);
                 }
+                if (i.Name == "MS")
+                {
+                    int x = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[0], 10);
+                    int y = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[1], 10);
+
+                    int b = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[0], 10);
+                    int o = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[1], 10);
+                    rs.Add(new RhyStep() { Type = typeof(MouseSinglePoint), Position = new Point(x, y), Base = b, Offset = o });
+                }
+                if (i.Name == "ML")
+                {
+                    int x = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[0], 10);
+                    int y = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[1], 10);
+
+                    int b = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[0], 10);
+                    int o = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[1], 10);
+
+                    double t = Convert.ToDouble(i.Attribute("Beat").Value.ToString());
+                    rs.Add(new RhyStep() { Type = typeof(MouseLongPoint), Position = new Point(x, y), Base = b, Offset = o, Time = t });
+                }
             }
             
             sb.HalfBeats += (c, b) =>
-            {if (b == 0)
-                    PP(new Random().Next(0,1280), (int)new Random().Next(0, 720));
-                // new RippleEffect(30, 400, new System.Drawing.Point(500,500)).PushTo(BackGround);
+            {
                 time_set.text = c.ToString() + ":" + b.ToString();
+                foreach (var i in rs)
+                {
+                    if (c == i.Base - 1 && b == i.Offset)
+                    {
+                        if (i.Type == typeof(MouseSinglePoint))
+                            PP((int)i.Position.X, (int)i.Position.Y);
+                        if (i.Type == typeof(MouseLongPoint))
+                            PL((int)i.Position.X, (int)i.Position.Y,i.Time);
+                        if (i.Type == typeof(KeyboardSinglePoint))
+                            KP((int)i.Position.X, (int)i.Position.Y, i.Key, i.Info);
+                        if (i.Type == typeof(KeyboardLongPoint))
+                            KL((int)i.Position.X, (int)i.Position.Y, i.Key, i.Info, i.Time);
+                        if (i.Type == typeof(RippleEffect))
+                            new RippleEffect(30, 400, new System.Drawing.Point((int)i.Position.X, (int)i.Position.Y)).PushTo(BackGround);
+                    }
+                }
             };
             sb.Start();
-            time_set.Top();
+            Title.Top();
             new Thread(()=>
             {
                 AudioFramly.waveInit(WindowHandle, music_player.Out_channels, music_player.Out_sample_rate, music_player.Bit_per_sample, music_player.Out_buffer_size);
@@ -159,6 +205,20 @@ namespace Shinengine
             string fileName = ((System.Array)e.Data.GetData(DataFormats.FileDrop)).GetValue(0).ToString();
             StartStoryBoard(fileName);
         }
+    }
+
+    struct RhyStep
+    {
+        public long Base;
+        public long Offset;
+
+        public Type Type;
+        public Point Position;
+
+        public Key Key;
+        public string Info;
+
+        public double Time;
     }
     public class RhythmTimer
     {
@@ -395,6 +455,7 @@ namespace Shinengine
 
         public MouseLongPoint(Layer layer, Direct2DWindow vm, System.Drawing.Point pos, UIElement w, double time, double speed = 1, DarkCurtain dk = null)
         {
+            speed = 1 / speed;
             var area = new SharpDX.Direct2D1.Ellipse(new RawVector2(pos.X, pos.Y), 80, 80);
             time = time * 60d;
             pos.X -= 80;
@@ -590,6 +651,7 @@ namespace Shinengine
 
         public KeyboardSinglePoint(Layer layer, Direct2DWindow vm, System.Drawing.Point pos, UIElement w, Key key, string info, double speed = 1,DarkCurtain dk=null)
         {
+            speed = 1 / speed;
             var area = new SharpDX.Direct2D1.Ellipse(new RawVector2(pos.X, pos.Y), 66, 66);
             pos.X -= 69;
             pos.Y -= 69;
@@ -735,6 +797,7 @@ namespace Shinengine
         public KeyboardLongPoint(Layer layer, Direct2DWindow vm, System.Drawing.Point pos, UIElement w, double time, Key key, string info, double speed = 1, DarkCurtain dk = null)
         {
 
+            speed = 1 / speed;
             var area = new SharpDX.Direct2D1.Ellipse(new RawVector2(pos.X, pos.Y), 80, 80);
             time = time * 60d;
             pos.X -= 80;

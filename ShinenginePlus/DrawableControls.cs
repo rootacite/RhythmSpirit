@@ -109,7 +109,13 @@ namespace ShinenginePlus.DrawableControls
             buffer = Direct2DHelper.LoadBitmap(path);
             PixelSize = new Size(buffer.Size.Width, buffer.Size.Height);
         }
-
+        public void ReLoad(string path)
+        {
+            var old = buffer;
+            buffer = Direct2DHelper.LoadBitmap(path);
+            PixelSize = new Size(buffer.Size.Width, buffer.Size.Height);
+            old.Dispose();
+        }
         public override WICBitmap Output
         {
             get
@@ -635,6 +641,14 @@ namespace ShinenginePlus.DrawableControls
     }
     sealed public class GroupLayer : Layer
     {
+        public void Top()
+        {
+            if (IsShowed)
+            {
+                _father.RenderGroup.Remove(this);
+                _father.RenderGroup.Add(this);
+            }
+        }
         public override Point CursorPos
         {
             get
