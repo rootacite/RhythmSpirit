@@ -420,7 +420,7 @@ namespace ShinenginePlus.DrawableControls
             var result = new RawMatrix3x2(x1.M11 * x2.M11 + x1.M21 + x2.M12, x1.M11 * x2.M21 + x1.M21 * x2.M22, x1.M12 * x2.M11 + x1.M22 * x2.M12, x1.M12 * x2.M21 + x1.M22 * x2.M22, 0f, 0f);
             return result;
         }
-
+        bool size_changed = false;
         public float Saturation { get; set; } = 1f;
         public float Brightness { get; set; } = 0.5f;
         public double Orientation { get; set; } = 0;
@@ -433,6 +433,7 @@ namespace ShinenginePlus.DrawableControls
             }
             set
             {
+                size_changed = true;
                 _Size = new Size2(value.Width, value.Height);
             }
         }
@@ -455,48 +456,59 @@ namespace ShinenginePlus.DrawableControls
         private SharpDX.Direct2D1.Image Output(DeviceContext rDc)
         {
             var ntdx = D2DBitmap.FromWicBitmap(rDc, _Pelete);
+            Image result1;
+
             var blEf = new SharpDX.Direct2D1.Effect(rDc, Effect.Opacity);
 
             blEf.SetInput(0, ntdx, new RawBool());
             blEf.SetValue(0, Opacity);
 
-            var result1 = blEf.Output;
+            result1 = blEf.Output;
             blEf.Dispose();
+            if (size_changed)
+            {
+                var tfEf = new SharpDX.Direct2D1.Effects.AffineTransform2D(rDc);
+                tfEf.SetInput(0, result1, new RawBool());
 
-            var tfEf = new SharpDX.Direct2D1.Effects.AffineTransform2D(rDc);
-            tfEf.SetInput(0, result1, new RawBool());
+                result1.Dispose();
+                var x_rate = _Size.Width / (double)_Pelete.Size.Width;
+                var y_rate = _Size.Height / (double)_Pelete.Size.Height;
+                tfEf.TransformMatrix = new RawMatrix3x2((float)x_rate, 0f, 0f, (float)y_rate, 0f, 0f);
+                result1 = tfEf.Output;
+                tfEf.Dispose();
+            }
+            if (Orientation != 1.0f)
+            {
+                var tfEf1 = new SharpDX.Direct2D1.Effects.AffineTransform2D(rDc);
+                tfEf1.SetInput(0, result1, new RawBool());
 
-            result1.Dispose();
-            var x_rate = _Size.Width / (double)_Pelete.Size.Width;
-            var y_rate = _Size.Height / (double)_Pelete.Size.Height;
-            tfEf.TransformMatrix = new RawMatrix3x2((float)x_rate, 0f, 0f, (float)y_rate, 0f, 0f);
-            result1 = tfEf.Output;
-            tfEf.Dispose();
-            var tfEf1 = new SharpDX.Direct2D1.Effects.AffineTransform2D(rDc);
-            tfEf1.SetInput(0, result1, new RawBool());
+                result1.Dispose();
+                var mr32 = Matrix3x2.CreateRotation((float)Orientation, new Vector2(RotationPoint.X, RotationPoint.Y));
+                tfEf1.TransformMatrix = new RawMatrix3x2(mr32.M11, mr32.M12, mr32.M21, mr32.M22, mr32.M31, mr32.M32);
+                result1 = tfEf1.Output;
+                tfEf1.Dispose();
+            }
+            if (this.Saturation != 1f)
+            {
+                var stEf = new SharpDX.Direct2D1.Effects.Saturation(rDc);
+                stEf.SetInput(0, result1, new RawBool());
 
-            result1.Dispose();
-            var mr32 = Matrix3x2.CreateRotation((float)Orientation, new Vector2(RotationPoint.X, RotationPoint.Y));
-            tfEf1.TransformMatrix = new RawMatrix3x2(mr32.M11, mr32.M12, mr32.M21, mr32.M22, mr32.M31, mr32.M32);
-            result1 = tfEf1.Output;
-            tfEf1.Dispose();
-            var stEf = new SharpDX.Direct2D1.Effects.Saturation(rDc);
-            stEf.SetInput(0, result1, new RawBool());
+                result1.Dispose();
+                stEf.Value = Saturation;
+                result1 = stEf.Output;
+                stEf.Dispose();
+            }
+            if (this.Brightness != 0.5f)
+            {
+                var btEf = new SharpDX.Direct2D1.Effects.Brightness(rDc);
+                btEf.SetInput(0, result1, new RawBool());
 
-            result1.Dispose();
-            stEf.Value = Saturation;
-            result1 = stEf.Output;
-            stEf.Dispose();
-
-            var btEf = new SharpDX.Direct2D1.Effects.Brightness(rDc);
-            btEf.SetInput(0, result1, new RawBool());
-
-            result1.Dispose();
-            btEf.BlackPoint = new RawVector2(1.0f - Brightness, Brightness);
-            //  btEf.WhitePoint =;
-            result1 = btEf.Output;
-            btEf.Dispose();
-
+                result1.Dispose();
+                btEf.BlackPoint = new RawVector2(1.0f - Brightness, Brightness);
+                //  btEf.WhitePoint =;
+                result1 = btEf.Output;
+                btEf.Dispose();
+            }
             ntdx.Dispose();
             return result1;
 

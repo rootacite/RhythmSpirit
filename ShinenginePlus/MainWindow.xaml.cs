@@ -79,12 +79,13 @@ namespace Shinengine
             pv.Set();
             WindowHandle = new WindowInteropHelper(this).Handle;
 
-            DX = new Direct2DWindow(new System.Drawing.Size((int)this.ActualWidth, (int)this.ActualHeight), WindowHandle);
+            DX = new Direct2DWindow(new System.Drawing.Size((int)this.ActualWidth, (int)this.ActualHeight), WindowHandle) { AskedFrames=60};
             BackGround = new BackGroundLayer(
                 new System.Drawing.Size((int)this.ActualWidth, (int)this.ActualHeight),
                 this,
                 new RawRectangleF(0, 0, (float)this.ActualWidth, (float)this.ActualHeight))
             {
+                
                 Color = new RawColor4(1, 1, 1, 0),
                 Range = new RawRectangleF(0, 0, (float)this.ActualWidth, (float)this.ActualHeight)
             };
@@ -94,7 +95,7 @@ namespace Shinengine
             bk1 = new RenderableImage(img) { Position = new System.Drawing.Point(0, 0) };
             bk1.Size = new SharpDX.Size2(1280, 720);
             bk1.PushTo(BackGround);
-            dn = new DarkCurtain(new System.Drawing.Size(1280, 720));
+            dn = new DarkCurtain(new System.Drawing.Size(1280, 720),DX.DC);
             dn.PushTo(BackGround);
 
             Title = new GroupLayer(BackGround, new SharpDX.Size2(1280, 30));
@@ -159,35 +160,25 @@ namespace Shinengine
                 if (i.Name == "head")
                 {
                     sb.BPM = Convert.ToInt32(i.Attribute("BPM").Value.ToString(), 10);
+                    continue;
                 }
+
+                int x = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[0], 10);
+                int y = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[1], 10);
+
+                int b = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[0], 10);
+                int o = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[1], 10);
                 if (i.Name == "MS")
                 {
-                    int x = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[0], 10);
-                    int y = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[1], 10);
-
-                    int b = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[0], 10);
-                    int o = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[1], 10);
                     rs.Add(new RhyStep() { Type = typeof(MouseSinglePoint), Position = new Point(x, y), Base = b, Offset = o });
                 }
                 if (i.Name == "ML")
                 {
-                    int x = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[0], 10);
-                    int y = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[1], 10);
-
-                    int b = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[0], 10);
-                    int o = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[1], 10);
-
                     double t = Convert.ToDouble(i.Attribute("Beat").Value.ToString());
                     rs.Add(new RhyStep() { Type = typeof(MouseLongPoint), Position = new Point(x, y), Base = b, Offset = o, Time = t });
                 }
                 if (i.Name == "KS")
                 {
-                    int x = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[0], 10);
-                    int y = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[1], 10);
-
-                    int b = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[0], 10);
-                    int o = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[1], 10);
-
                     char key_c = i.Attribute("Key").Value.ToString()[0];
 
 
@@ -195,12 +186,7 @@ namespace Shinengine
                 }
 
                 if (i.Name == "KL")
-                {
-                    int x = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[0], 10);
-                    int y = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[1], 10);
-
-                    int b = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[0], 10);
-                    int o = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[1], 10);
+                { 
 
                     double t = Convert.ToDouble(i.Attribute("Beat").Value.ToString());
                     char key_c = i.Attribute("Key").Value.ToString()[0];
@@ -209,9 +195,9 @@ namespace Shinengine
                 }
             }
 
-            sb.HalfBeats += (c, b) =>
+            sb.QuarterBeats += (c, b) =>
             {
-                time_set.text = c.ToString() + ":" + b.ToString();
+                time_set.text = c.ToString() + ":" + b.ToString() + "  FPS:" + DX.FrameRate.ToString(); ;
 
                 frame_start:
                 if (rs.Count == 0)
@@ -1047,9 +1033,10 @@ namespace Shinengine
 
     class DarkCurtain : BRenderableObject, IDisposable
     {
+        private BitmapBrush o_mask = null;
         private readonly DrawingImage mask;
         public readonly List<SharpDX.Direct2D1.Ellipse> Range = new List<SharpDX.Direct2D1.Ellipse>();
-        public DarkCurtain(System.Drawing.Size Size)
+        public DarkCurtain(System.Drawing.Size Size,DeviceContext dc)
         {
             mask = new DrawingImage(Size);
             mask.Proc += (dc) =>
@@ -1086,6 +1073,13 @@ namespace Shinengine
                 }
                 dc.EndDraw();
             };
+            mask.Update();
+            var output = mask.Output;
+            var mask_per = SharpDX.Direct2D1.Bitmap.FromWicBitmap(dc, output);
+            o_mask = new BitmapBrush(dc, mask_per);
+
+            mask_per.Dispose();
+            output.Dispose();
         }
         public float Opacity { get; set; } = 0.7f;
 
@@ -1097,8 +1091,8 @@ namespace Shinengine
         public override void Render(DeviceContext dc)
         {
             var m_layer = new SharpDX.Direct2D1.Layer(dc, new SharpDX.Size2F(dc.Size.Width, dc.Size.Height));
-            mask.Update();
-            var output = mask.Output;
+          //  mask.Update();
+           
             /*
             var m_lock = output.Lock(SharpDX.WIC.BitmapLockFlags.Write);
             for (int i=0;i< m_lock.Size.Height; i++)
@@ -1116,15 +1110,14 @@ namespace Shinengine
             }
             m_lock.Dispose();
             */
-            var mask_per = SharpDX.Direct2D1.Bitmap.FromWicBitmap(dc, output);
-            var omask = new BitmapBrush(dc, mask_per);
+           
             LayerParameters lp = new LayerParameters()
             {
                 Opacity = 1.0f,
                 ContentBounds = new RawRectangleF(0, 0, dc.Size.Width, dc.Size.Height),
                 LayerOptions=LayerOptions.None,
                 MaskAntialiasMode=AntialiasMode.PerPrimitive,
-                OpacityBrush = omask
+                OpacityBrush = o_mask
             };
             dc.PushLayer(ref lp, m_layer);
 
@@ -1133,9 +1126,6 @@ namespace Shinengine
                 dc.FillRectangle(new RawRectangleF(0, 0, dc.Size.Width, dc.Size.Height), b);
             dc.PopLayer();
 
-            omask.Dispose();
-            mask_per.Dispose();
-            output.Dispose();
             m_layer.Dispose();
         }
     }
