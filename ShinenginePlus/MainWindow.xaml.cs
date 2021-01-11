@@ -37,6 +37,22 @@ namespace Shinengine
     /// 
     public partial class MainWindow : Window
     {
+        static Key GetKey(char c)
+        {
+            if (c >= 'A' && c <= 'Z')
+                return Key.A + (c - 'A');
+
+            if (c == '!')
+                return Key.Up;
+            else if (c == '@')
+                return Key.Down;
+            else if (c == '#')
+                return Key.Left;
+            else if (c == '%')
+                return Key.Right;
+            else
+                return Key.Space;
+        }
         public IntPtr WindowHandle = (IntPtr)0;
         public BackGroundLayer BackGround = null;
         public Direct2DWindow DX = null;
@@ -164,27 +180,63 @@ namespace Shinengine
                     double t = Convert.ToDouble(i.Attribute("Beat").Value.ToString());
                     rs.Add(new RhyStep() { Type = typeof(MouseLongPoint), Position = new Point(x, y), Base = b, Offset = o, Time = t });
                 }
+                if (i.Name == "KS")
+                {
+                    int x = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[0], 10);
+                    int y = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[1], 10);
+
+                    int b = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[0], 10);
+                    int o = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[1], 10);
+
+                    char key_c = i.Attribute("Key").Value.ToString()[0];
+
+
+                    rs.Add(new RhyStep() { Type = typeof(KeyboardSinglePoint), Position = new Point(x, y), Base = b, Offset = o, Key = GetKey(key_c), Info = key_c.ToString() });
+                }
+
+                if (i.Name == "KL")
+                {
+                    int x = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[0], 10);
+                    int y = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[1], 10);
+
+                    int b = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[0], 10);
+                    int o = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[1], 10);
+
+                    double t = Convert.ToDouble(i.Attribute("Beat").Value.ToString());
+                    char key_c = i.Attribute("Key").Value.ToString()[0];
+
+                    rs.Add(new RhyStep() { Type = typeof(KeyboardLongPoint), Position = new Point(x, y), Base = b, Offset = o, Time = t, Key = GetKey(key_c), Info = key_c.ToString() });
+                }
             }
-            
+
             sb.HalfBeats += (c, b) =>
             {
                 time_set.text = c.ToString() + ":" + b.ToString();
-                foreach (var i in rs)
+
+                frame_start:
+                if (rs.Count == 0)
+                    return;
+                if (c == rs[0].Base - 1 && b == rs[0].Offset)
                 {
-                    if (c == i.Base - 1 && b == i.Offset)
-                    {
-                        if (i.Type == typeof(MouseSinglePoint))
-                            PP((int)i.Position.X, (int)i.Position.Y);
-                        if (i.Type == typeof(MouseLongPoint))
-                            PL((int)i.Position.X, (int)i.Position.Y,i.Time);
-                        if (i.Type == typeof(KeyboardSinglePoint))
-                            KP((int)i.Position.X, (int)i.Position.Y, i.Key, i.Info);
-                        if (i.Type == typeof(KeyboardLongPoint))
-                            KL((int)i.Position.X, (int)i.Position.Y, i.Key, i.Info, i.Time);
-                        if (i.Type == typeof(RippleEffect))
-                            new RippleEffect(30, 400, new System.Drawing.Point((int)i.Position.X, (int)i.Position.Y)).PushTo(BackGround);
-                    }
+                    if (rs[0].Type == typeof(MouseSinglePoint))
+                        PP((int)rs[0].Position.X, (int)rs[0].Position.Y);
+                    if (rs[0].Type == typeof(MouseLongPoint))
+                        PL((int)rs[0].Position.X, (int)rs[0].Position.Y, rs[0].Time);
+                    if (rs[0].Type == typeof(KeyboardSinglePoint))
+                        KP((int)rs[0].Position.X, (int)rs[0].Position.Y, rs[0].Key, rs[0].Info);
+                    if (rs[0].Type == typeof(KeyboardLongPoint))
+                        KL((int)rs[0].Position.X, (int)rs[0].Position.Y, rs[0].Key, rs[0].Info, rs[0].Time);
+                    if (rs[0].Type == typeof(RippleEffect))
+                        new RippleEffect(30, 400, new System.Drawing.Point((int)rs[0].Position.X, (int)rs[0].Position.Y)).PushTo(BackGround);
+
+                    rs.RemoveAt(0);
+                    goto frame_start;
                 }
+                else
+                {
+                    return;
+                }
+
             };
             sb.Start();
             Title.Top();
