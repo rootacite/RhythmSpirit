@@ -44,6 +44,7 @@ namespace ShinenginePlus.DrawableControls
 
     public abstract class ImageSource : IDisposable
     {
+        public bool Updated { get; protected set; } = true;
         public Size PixelSize { get; protected set; }
         protected ImagingFactory iFactory = new ImagingFactory();
         public abstract WICBitmap Output { get; }
@@ -55,8 +56,10 @@ namespace ShinenginePlus.DrawableControls
     }
     sealed public class DrawingImage : ImageSource
     {
+        // 存在错误 绘图代码和Output可能同时被调用 并引发错误
         D2DFactory DxFac = new D2DFactory();
         WICBitmap buffer = null;
+        WICBitmap load_buffer = null;
         WicRenderTarget View = null;
         public DrawingImage(Size size)
         {
@@ -76,11 +79,17 @@ namespace ShinenginePlus.DrawableControls
                 0,
                 RenderTargetUsage.None,
                 SharpDX.Direct2D1.FeatureLevel.Level_DEFAULT));
+
+            load_buffer = new WICBitmap(iFactory, buffer, BitmapCreateCacheOption.CacheOnLoad);
         }
 
         public void Update()
         {
             Proc?.Invoke(View);
+            var old_proc = load_buffer;
+            load_buffer = new WICBitmap(iFactory, buffer, BitmapCreateCacheOption.CacheOnLoad);
+            old_proc?.Dispose();
+            Updated = true;
         }
         public delegate void DrawProc(WicRenderTarget view);
         public event DrawProc Proc;
@@ -88,7 +97,10 @@ namespace ShinenginePlus.DrawableControls
         {
             get
             {
-                return new WICBitmap(iFactory, buffer, BitmapCreateCacheOption.CacheOnLoad);
+                Updated = false;
+                if (load_buffer?.IsDisposed == false)
+                    return new WICBitmap(iFactory, load_buffer, BitmapCreateCacheOption.CacheOnLoad);
+                else return null;
             }
         }
 
@@ -115,11 +127,13 @@ namespace ShinenginePlus.DrawableControls
             buffer = Direct2DHelper.LoadBitmap(path);
             PixelSize = new Size(buffer.Size.Width, buffer.Size.Height);
             old.Dispose();
+            Updated = true;
         }
         public override WICBitmap Output
         {
             get
             {
+                Updated = false;
                 return new WICBitmap(iFactory, buffer, BitmapCreateCacheOption.CacheOnLoad);
             }
         }
@@ -135,7 +149,14 @@ namespace ShinenginePlus.DrawableControls
     {
         IntPtr buffer = (IntPtr)0;
         System.Drawing.Bitmap buffer_convert = null;
-        public Graphics graphics = null;
+        Graphics graphics = null;
+        public Graphics Graphics {
+            get
+            {
+                Updated = true;
+                return graphics;
+            }
+        }
         
         public GDIBitmap(Size size)
         {
@@ -153,6 +174,7 @@ namespace ShinenginePlus.DrawableControls
         {
             get
             {
+                Updated = false;
                 return new WICBitmap(iFactory, buffer_convert.Width, buffer_convert.Height, SharpDX.WIC.PixelFormat.Format32bppPBGRA, new DataRectangle(buffer, buffer_convert.Width * 4));
             }
         }
@@ -374,7 +396,6 @@ namespace ShinenginePlus.DrawableControls
 
     public class RenderableImage : RenderableObject, IDisposable
     {
-        Image PrepairedImage = null;
         bool size_changed = false;
         public float Saturation { get; set; } = 1f;
         public float Brightness { get; set; } = 0.5f;
@@ -410,7 +431,17 @@ namespace ShinenginePlus.DrawableControls
         private ImageSource Source = null;
         private SharpDX.Direct2D1.Image Output(DeviceContext rDc)
         {
-            var ntdx = D2DBitmap.FromWicBitmap(rDc, _Pelete);
+            D2DBitmap ntdx = null;
+            try
+            {
+
+                ntdx = D2DBitmap.FromWicBitmap(rDc, _Pelete);
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show(e.ToString());
+
+            }
             Image result1;
 
             var blEf = new SharpDX.Direct2D1.Effect(rDc, Effect.Opacity);
@@ -486,25 +517,16 @@ namespace ShinenginePlus.DrawableControls
             this._Size = new Size2(this._Pelete.Size.Width, this._Pelete.Size.Height);
 
             RotationPoint = new Point(this._Pelete.Size.Width / 2, this._Pelete.Size.Height / 2);
-
-            AddUpdateProcess(() =>
-            {
-                var old_process = _Pelete;
-                _Pelete = Source.Output;
-                old_process.Dispose();
-
-
-               
-                return true;
-            });
         }
 
         public override void Render()
         {
-            if (PrepairedImage?.IsDisposed == false)
-                PrepairedImage.Dispose();
-            PrepairedImage = Output(HostDC);
-            if (PrepairedImage?.IsDisposed==false)
+            if (Source.Updated)
+            {
+                _Pelete?.Dispose();
+                _Pelete = Source.Output;
+            }
+            using (Image PrepairedImage = Output(HostDC))
                 HostDC.DrawImage(PrepairedImage, new RawVector2(_Position.X, _Position.Y), null, SharpDX.Direct2D1.InterpolationMode.Linear, CompositeMode.SourceOver);
         }
 
@@ -780,7 +802,12 @@ namespace ShinenginePlus.DrawableControls
 
             }
         }
-
+        private List<UpdateProcess> Updating = new List<UpdateProcess>();
+        public void AddUpdateProcess(UpdateProcess Proc)
+        {
+            Updating.Add(Proc);
+        }
+        public delegate bool UpdateProcess();
         public void Update()
         {
             var RCP = RenderGroup.ToArray();
@@ -789,7 +816,17 @@ namespace ShinenginePlus.DrawableControls
             {
                 i.Update();
             }
-
+            List<UpdateProcess> RemoveableUpdating = new List<UpdateProcess>();
+            var RUM = Updating.ToArray();
+            foreach (var i in RUM)
+            {
+                var result = i();
+                if (!result) RemoveableUpdating.Add(i);
+            }
+            foreach (var i in RemoveableUpdating)
+            {
+                Updating.Remove(i);
+            }
         }
 
         public Size2 Size
