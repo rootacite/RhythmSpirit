@@ -1147,6 +1147,18 @@ namespace Shinengine
 
     static class DarkCurtain
     {
+        static DrawingImage Mask = new DrawingImage(new System.Drawing.Size(2560, 1440));
+
+        static DarkCurtain()
+        {
+            Mask.Proc += (dc) =>
+            {
+                dc.BeginDraw();
+                dc.Clear(new RawColor4(0,0,0,0));
+                
+            };
+        }
+
         static public List<SharpDX.Direct2D1.Ellipse> Range = new List<SharpDX.Direct2D1.Ellipse>();
         public static void AddUpdate(this List<SharpDX.Direct2D1.Ellipse> list, SharpDX.Direct2D1.Ellipse e)
         {
