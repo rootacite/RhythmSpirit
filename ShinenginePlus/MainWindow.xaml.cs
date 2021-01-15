@@ -15,6 +15,8 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 
+using WICBitmap = SharpDX.WIC.Bitmap;
+using D2DBitmap = SharpDX.Direct2D1.Bitmap1;
 using ShinenginePlus.DrawableControls;
 
 using ShinenginePlus;
@@ -28,6 +30,9 @@ using RadialGradientBrush = SharpDX.Direct2D1.RadialGradientBrush;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
 using System.Xml.Linq;
+using System.Windows.Threading;
+using ImageSource = ShinenginePlus.DrawableControls.ImageSource;
+using Image = SharpDX.Direct2D1.Image;
 
 namespace Shinengine
 {
@@ -35,8 +40,83 @@ namespace Shinengine
     /// Interaction logic for MainWindow.xaml
     /// </summary>
     /// 
+
+    public class MaskedRenderableImage : RenderableImage
+    {
+        DrawingImage o_mask = null;
+
+
+        public MaskedRenderableImage(ImageSource im, DeviceContext dc) : base(im, dc)
+        {
+            o_mask = new DrawingImage(new System.Drawing.Size(2560,1440));
+            o_mask.Proc += (dc) => 
+            {
+                dc.BeginDraw();
+
+                var RCM = DarkCurtain.Range.ToArray();
+                dc.Clear(new RawColor4(1, 1, 1, 0.75f));
+                foreach(var i in RCM)
+                {
+                    var rp = new SharpDX.Direct2D1.RadialGradientBrushProperties
+                    {
+                        GradientOriginOffset = new RawVector2(0, 0),
+                        Center = i.Point,
+                        RadiusX = i.RadiusX,
+                        RadiusY = i.RadiusY
+                    };
+                    var gp = new SharpDX.Direct2D1.GradientStopCollection(
+                        dc,
+                        new SharpDX.Direct2D1.GradientStop[]
+                        {
+                            new SharpDX.Direct2D1.GradientStop
+                            { Color = new RawColor4(1, 1, 1, 1), Position = 0f },
+                            new SharpDX.Direct2D1.GradientStop
+                            { Color = new RawColor4(1, 1, 1, 0.75f), Position = 1f }
+                        });
+
+                    using (RadialGradientBrush b = new RadialGradientBrush(dc, rp, gp))
+                        dc.FillEllipse(i, b);
+                }
+
+                dc.EndDraw();
+            };
+        }
+
+        public override void Render()
+        {
+            if (Source.Updated)
+            {
+                _Pelete?.Dispose();
+                _Pelete = Source.Output;
+            }
+           
+            o_mask.Update();
+
+            using (SharpDX.Direct2D1.Layer maskLayer = new SharpDX.Direct2D1.Layer(HostDC))  
+            using (WICBitmap mn_mask = o_mask.Output)
+            using (D2DBitmap mask = D2DBitmap.FromWicBitmap(HostDC, mn_mask))
+            using (BitmapBrush br = new BitmapBrush(HostDC, mask))
+            {
+                LayerParameters lp = new LayerParameters
+                {
+                    OpacityBrush = br,
+                    ContentBounds=new RawRectangleF(0,0,2560,1440),
+                    LayerOptions=LayerOptions.None,
+                    MaskAntialiasMode=AntialiasMode.PerPrimitive,
+                    
+                };
+               HostDC.PushLayer(ref lp, maskLayer);
+                using (Image PrepairedImage = Output(HostDC))
+                      HostDC.DrawImage(mask, new RawVector2(Position.X, Position.Y), null, SharpDX.Direct2D1.InterpolationMode.Linear, CompositeMode.SourceOver);
+                    
+              HostDC.PopLayer();
+            }
+
+        }
+    }
     public partial class MainWindow : Window
     {
+        static int update_time = 0;
         static Key GetKey(char c)
         {
             if (c >= 'A' && c <= 'Z')
@@ -56,16 +136,21 @@ namespace Shinengine
         public IntPtr WindowHandle = (IntPtr)0;
         public BackGroundLayer BackGround = null;
         public Direct2DWindow DX = null;
-        GroupLayer Title;
+        GroupLayer TitleBar;
+        GroupLayer OpearArea;
         DrawableText time_set;
         public DrawResultW DrawProc(DeviceContext dc)
         {
-            dc.Clear(new RawColor4(1, 1, 1, 1));
+            try
+            {
+                dc.Clear(new RawColor4(1, 1, 1, 1));
 
-            BackGround.Render(dc);
-            BackGround.Update();
-
-
+                BackGround.Render();
+            }
+            catch(Exception e)
+            {
+                MessageBox.Show(e.ToString());
+            }
             return DrawResultW.Commit;
         }
         public MainWindow()
@@ -79,38 +164,78 @@ namespace Shinengine
             pv.Set();
             WindowHandle = new WindowInteropHelper(this).Handle;
 
-            DX = new Direct2DWindow(new System.Drawing.Size((int)this.ActualWidth, (int)this.ActualHeight), WindowHandle);
+            
+              
+
+            DX = new Direct2DWindow(new System.Drawing.Size((int)this.ActualWidth, (int)this.ActualHeight), WindowHandle) { AskedFrames=60};
             BackGround = new BackGroundLayer(
                 new System.Drawing.Size((int)this.ActualWidth, (int)this.ActualHeight),
                 this,
-                new RawRectangleF(0, 0, (float)this.ActualWidth, (float)this.ActualHeight))
+                new RawRectangleF(0, 0, (float)this.ActualWidth, (float)this.ActualHeight),DX.DC)
             {
+                
                 Color = new RawColor4(1, 1, 1, 0),
                 Range = new RawRectangleF(0, 0, (float)this.ActualWidth, (float)this.ActualHeight)
             };
+            Thread updateTimer = new Thread(() =>
+            {
+                while (true)
+                {
+                    Stopwatch sw = new Stopwatch();
+                    sw.Start();
+
+                    BackGround.Update();
+
+                    sw.Stop();
+
+
+                    decimal time = sw.ElapsedTicks / (decimal)Stopwatch.Frequency * 1000;
+                    decimal wait_time = 1000.0M / 60M - time;
+
+                    if (wait_time < 0)
+                    {
+                        wait_time = 0;
+                    }
+
+                    Thread.Sleep((int)wait_time);
+                }
+
+            })
+            { IsBackground = true };
+
+
 
             DX.DrawProc += DrawProc;
+
+
+            OpearArea = new GroupLayer(BackGround, new SharpDX.Size2(2560, 1440), DX.DC) { Range = new RawRectangleF(0, 0, 2560, 1440) };
+            OpearArea.OutPutRange = new RawRectangleF(0, 0, 1280, 720);
+            OpearArea.Color = new SharpDX.Mathematics.Interop.RawColor4(0, 0, 0, 1);
+
+            //  img = new DrawingImage("assets\\title.png");
             img = new BitmapImage("assets\\title.png");
-            bk1 = new RenderableImage(img) { Position = new System.Drawing.Point(0, 0) };
-            bk1.Size = new SharpDX.Size2(1280, 720);
-            bk1.PushTo(BackGround);
-            dn = new DarkCurtain(new System.Drawing.Size(1280, 720));
-            dn.PushTo(BackGround);
+           
+            bk1 = new MaskedRenderableImage(img,DX.DC) { Position = new System.Drawing.Point(0, 0) };
+            bk1.Size = OpearArea.Size;
+            bk1.PushTo(OpearArea);
 
-            Title = new GroupLayer(BackGround, new SharpDX.Size2(1280, 30));
-            Title.OutPutRange = new RawRectangleF(0, 0, 1280, 30);
-            Title.Color = new SharpDX.Mathematics.Interop.RawColor4(1, 1, 1, 0.35f);
-
-            time_set = new DrawableText("", "黑体",22);
-            time_set.Color = new RawColor4(1, 0, 0, 1);
-            time_set.PushTo(Title);
+            TitleBar = new GroupLayer(BackGround, new SharpDX.Size2(1280, 30), DX.DC);
+            TitleBar.OutPutRange = new RawRectangleF(0, 0, 1280, 30);
+            TitleBar.Color = new SharpDX.Mathematics.Interop.RawColor4(1, 1, 1, 0.35f);
 
             
+            time_set = new DrawableText("Hello World", "黑体",22, DX.DC);
+            time_set.Color = new RawColor4(1, 0, 0, 1);
+            time_set.PushTo(TitleBar);
+
+            OpearArea.PushTo(BackGround);
+            TitleBar.PushTo(BackGround);
+
             DX.Run();
+            updateTimer.Start();
         }
-        RenderableImage bk1;
-        BitmapImage img = null;
-        DarkCurtain dn;
+        MaskedRenderableImage bk1;
+        static public BitmapImage img = null;
         RhythmTimer sb;
         ManualResetEvent pn = new ManualResetEvent(false);
         ManualResetEvent pv = new ManualResetEvent(false);
@@ -121,30 +246,33 @@ namespace Shinengine
             ask_stop = true;
             pv.WaitOne();
             ask_stop = false;
-            string bk = path + "\\bk.png";
-            string music = path + "\\music.aac";
-            string script = path + "\\script.xml";
+            var name_pah = path.Split('\\');
+
+            string bk = path + "\\" + name_pah[name_pah.Length - 1] + ".png";
+            string music = path + "\\" + name_pah[name_pah.Length - 1] + ".aac";
+            string script = path + "\\" + name_pah[name_pah.Length - 1] + ".xml";
             sb = new RhythmTimer() {};
+
             img.ReLoad(bk);
             void KP(int x, int y, Key key, string info,double speed = 1)
             {
                 speed = 60d / sb.BPM;
-                new KeyboardSinglePoint(BackGround, DX, new System.Drawing.Point(x, y), this, key, info, speed, dn);
+                new KeyboardSinglePoint(DX.DC,OpearArea, DX, new System.Drawing.Point(x, y), this, key, info, speed);
             }
             void KL(int x, int y, Key key, string info, double beat, double speed = 1)
             {
                 speed= 60d / sb.BPM;
-                new KeyboardLongPoint(BackGround, DX, new System.Drawing.Point(x, y), this, 60d / sb.BPM * beat, key, info, speed, dn);
+                new KeyboardLongPoint(DX.DC, OpearArea, DX, new System.Drawing.Point(x, y), this, 60d / sb.BPM * beat, key, info, speed);
             }
             void PL(int x, int y,double beat, double speed = 1)
             {
                 speed = 60d / sb.BPM;
-                new MouseLongPoint(BackGround, DX, new System.Drawing.Point(x, y), this, 60d / sb.BPM * beat, speed, dn);
+                new MouseLongPoint(DX.DC, OpearArea, DX, new System.Drawing.Point(x, y), this, 60d / sb.BPM * beat, speed);
             }
             void PP(int x, int y, double speed = 1)
             {
                 speed = 60d / sb.BPM;
-                new MouseSinglePoint(BackGround, DX, new System.Drawing.Point(x, y), this, speed, dn);
+                new MouseSinglePoint(DX.DC, OpearArea, DX, new System.Drawing.Point(x, y), this, speed);
             }
            
             AudioFramly music_player = new AudioFramly(music);
@@ -159,35 +287,33 @@ namespace Shinengine
                 if (i.Name == "head")
                 {
                     sb.BPM = Convert.ToInt32(i.Attribute("BPM").Value.ToString(), 10);
+                    continue;
                 }
+                int b = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[0], 10);
+                int o = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[1], 10);
+                if (i.Name == "MV")
+                {
+                    var reccct_array = i.Attribute("Rect").Value.ToString().Split(":");
+
+                    double t = Convert.ToDouble(i.Attribute("Beat").Value.ToString());
+
+                    rs.Add(new RhyStep() { Type = typeof(Point), Base = b, Offset = o, Time = t, Rect = new RawRectangleF(Convert.ToInt32(reccct_array[0]), Convert.ToInt32(reccct_array[1]), Convert.ToInt32(reccct_array[2]), Convert.ToInt32(reccct_array[3])) });
+                    continue;
+                }
+                int x = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[0], 10);
+                int y = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[1], 10);
+
                 if (i.Name == "MS")
                 {
-                    int x = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[0], 10);
-                    int y = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[1], 10);
-
-                    int b = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[0], 10);
-                    int o = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[1], 10);
                     rs.Add(new RhyStep() { Type = typeof(MouseSinglePoint), Position = new Point(x, y), Base = b, Offset = o });
                 }
                 if (i.Name == "ML")
                 {
-                    int x = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[0], 10);
-                    int y = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[1], 10);
-
-                    int b = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[0], 10);
-                    int o = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[1], 10);
-
                     double t = Convert.ToDouble(i.Attribute("Beat").Value.ToString());
                     rs.Add(new RhyStep() { Type = typeof(MouseLongPoint), Position = new Point(x, y), Base = b, Offset = o, Time = t });
                 }
                 if (i.Name == "KS")
                 {
-                    int x = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[0], 10);
-                    int y = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[1], 10);
-
-                    int b = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[0], 10);
-                    int o = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[1], 10);
-
                     char key_c = i.Attribute("Key").Value.ToString()[0];
 
 
@@ -195,12 +321,7 @@ namespace Shinengine
                 }
 
                 if (i.Name == "KL")
-                {
-                    int x = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[0], 10);
-                    int y = Convert.ToInt32(i.Attribute("Pos").Value.ToString().Split(":")[1], 10);
-
-                    int b = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[0], 10);
-                    int o = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[1], 10);
+                { 
 
                     double t = Convert.ToDouble(i.Attribute("Beat").Value.ToString());
                     char key_c = i.Attribute("Key").Value.ToString()[0];
@@ -209,37 +330,75 @@ namespace Shinengine
                 }
             }
 
-            sb.HalfBeats += (c, b) =>
+            sb.QuarterBeats += (c, b) =>
             {
-                time_set.text = c.ToString() + ":" + b.ToString();
-
-                frame_start:
-                if (rs.Count == 0)
-                    return;
-                if (c == rs[0].Base - 1 && b == rs[0].Offset)
+                try
                 {
-                    if (rs[0].Type == typeof(MouseSinglePoint))
-                        PP((int)rs[0].Position.X, (int)rs[0].Position.Y);
-                    if (rs[0].Type == typeof(MouseLongPoint))
-                        PL((int)rs[0].Position.X, (int)rs[0].Position.Y, rs[0].Time);
-                    if (rs[0].Type == typeof(KeyboardSinglePoint))
-                        KP((int)rs[0].Position.X, (int)rs[0].Position.Y, rs[0].Key, rs[0].Info);
-                    if (rs[0].Type == typeof(KeyboardLongPoint))
-                        KL((int)rs[0].Position.X, (int)rs[0].Position.Y, rs[0].Key, rs[0].Info, rs[0].Time);
-                    if (rs[0].Type == typeof(RippleEffect))
-                        new RippleEffect(30, 400, new System.Drawing.Point((int)rs[0].Position.X, (int)rs[0].Position.Y)).PushTo(BackGround);
+                    time_set.text = c.ToString() + ":" + b.ToString() + "  FPS:" + DX.FrameRate.ToString() + "UT:" + update_time.ToString(); ;
 
-                    rs.RemoveAt(0);
-                    goto frame_start;
+                    frame_start:
+                    if (rs.Count == 0)
+                        return;
+                    if (c == rs[0].Base - 1 && b == rs[0].Offset)
+                    {
+                        if (rs[0].Type == typeof(MouseSinglePoint))
+                            PP((int)rs[0].Position.X, (int)rs[0].Position.Y);
+                        if (rs[0].Type == typeof(MouseLongPoint))
+                            PL((int)rs[0].Position.X, (int)rs[0].Position.Y, rs[0].Time);
+                        if (rs[0].Type == typeof(KeyboardSinglePoint))
+                            KP((int)rs[0].Position.X, (int)rs[0].Position.Y, rs[0].Key, rs[0].Info);
+                        if (rs[0].Type == typeof(KeyboardLongPoint))
+                            KL((int)rs[0].Position.X, (int)rs[0].Position.Y, rs[0].Key, rs[0].Info, rs[0].Time);
+                        if (rs[0].Type == typeof(RippleEffect))
+                        {
+                            new Thread(()=> {
+                                Thread.Sleep((int)((60d / sb.BPM) * 1000d));
+                                new RippleEffect(30, 400, new System.Drawing.Point((int)rs[0].Position.X, (int)rs[0].Position.Y), DX.DC).PushTo(BackGround);
+                            }).Start();
+                        }
+                        if (rs[0].Type == typeof(Point))
+                        {
+                            RhyStep mc = rs[0];
+                            new Thread(() => {
+                                Thread.Sleep((int)((60d / sb.BPM) * 1000d));
+                                int time_frame = (int)((60d / sb.BPM * mc.Time) * 60d);
+                                double left_change = (mc.Rect.Left - OpearArea.Range.Left) / time_frame;
+                                double top_change = (mc.Rect.Top - OpearArea.Range.Top) / time_frame;
+                                double right_change = (mc.Rect.Right - OpearArea.Range.Right) / time_frame;
+                                double bottom_change = (mc.Rect.Bottom - OpearArea.Range.Bottom) / time_frame;
+
+                                OpearArea.AddUpdateProcess(()=>
+                                {
+                                    var new_rect = OpearArea.Range;
+                                    new_rect.Left += (float)left_change;
+                                    new_rect.Top += (float)top_change;
+                                    new_rect.Right += (float)right_change;
+                                    new_rect.Bottom += (float)bottom_change;
+                                    OpearArea.Range = new_rect;
+                                    if (--time_frame > 0) return true;
+                                    else return false;
+
+                                });
+                            }).Start();
+                        }
+
+                        rs.RemoveAt(0);
+                        goto frame_start;
+                    }
+                    else
+                    {
+                        return;
+                    }
                 }
-                else
+                catch (Exception e)
                 {
-                    return;
+                    MessageBox.Show(e.ToString());
                 }
+              
 
             };
             sb.Start();
-            Title.Top();
+            TitleBar.Top();
             double time_save = 0;
             new Thread(() =>
             {
@@ -250,10 +409,18 @@ namespace Shinengine
                 if (!ask_stop)
                 {
                     unsafe
-                    {
-                        time_save = (i?.time_base).Value;
-                          //  sb.Accuracy((i?.time_base).Value);
-                            AudioFramly.waveWrite((byte*)i?.data, music_player.Out_buffer_size);
+                        {
+                            try
+                            {
+                                time_save = (i?.time_base).Value;
+                                //  sb.Accuracy((i?.time_base).Value);
+                                AudioFramly.waveWrite((byte*)i?.data, music_player.Out_buffer_size);
+                            }
+                            catch (Exception e)
+                            {
+                                MessageBox.Show(e.ToString());
+                            }
+                           
                         }
                     }
                     Marshal.FreeHGlobal((i?.data).Value);
@@ -291,6 +458,7 @@ namespace Shinengine
         public string Info;
 
         public double Time;
+        public RawRectangleF Rect;
     }
     public class RhythmTimer
     {
@@ -372,7 +540,7 @@ namespace Shinengine
         RenderableImage ctl = null;
         BitmapImage img = null;
 
-        public PerfectInfo(Layer layer, Direct2DWindow vm, System.Drawing.Point pos, int info)
+        public PerfectInfo(Layer layer, Direct2DWindow vm, System.Drawing.Point pos, int info,DeviceContext DC)
         {
             if (info == 0)
                 img = new BitmapImage("assets\\perfect.png");
@@ -381,7 +549,7 @@ namespace Shinengine
             else img = new BitmapImage("assets\\miss.png");
             pos.X -= img.PixelSize.Width / 4;
             pos.Y -= img.PixelSize.Height / 4;
-            ctl = new RenderableImage(img);
+            ctl = new RenderableImage(img, DC);
             ctl.Position = pos;
             ctl.Size = new SharpDX.Size2(ctl.Size.Width / 2, ctl.Size.Height / 2);
             ctl.AddUpdateProcess(() =>
@@ -411,7 +579,7 @@ namespace Shinengine
         double frame = 90d;
         float opdivied = 0;
 
-        public MouseSinglePoint(Layer layer, Direct2DWindow vm, System.Drawing.Point pos, UIElement w, double speed = 1 , DarkCurtain dk=null)
+        public MouseSinglePoint(DeviceContext DC,Layer layer, Direct2DWindow vm, System.Drawing.Point pos, UIElement w, double speed = 1)
         {
             speed = 1 / speed;
 
@@ -419,7 +587,7 @@ namespace Shinengine
             pos.X -= 69;
             pos.Y -= 69;
 
-            btn = new InteractiveObject(img) { Position = pos };
+            btn = new InteractiveObject(img, DC) { Position = pos };
             img.Proc += (s) =>
             {
                 s.BeginDraw();
@@ -460,8 +628,8 @@ namespace Shinengine
                             btn.PopFrom();
                             vm.CleanTasks.Add(btn);
                             vm.CleanTasks.Add(img);
-                            if (dk != null)
-                                dk.Range.Remove(area);
+                           
+                                DarkCurtain.Range.AddUpdate(area);
                             return false;
                         }
                         img.Update();
@@ -476,9 +644,9 @@ namespace Shinengine
                     btn.PopFrom();
                     vm.CleanTasks.Add(btn);
                     vm.CleanTasks.Add(img);
-                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 69, pos.Y + 69), 3);
-                    if (dk != null)
-                        dk.Range.Remove(area);
+                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 69, pos.Y + 69), 3, DC);
+                    
+                        DarkCurtain.Range.RemoveUpdate(area);
                     return false;
                 }
                 img.Update();
@@ -497,26 +665,26 @@ namespace Shinengine
                 t.Handled = true;
                 if (frame > 25 && frame < 35)
                 {
-                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 69, pos.Y + 69), 0);
+                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 69, pos.Y + 69), 0, DC);
 
                 }
                 else if ((frame > 15 && frame <= 25) || (frame >= 35 && frame < 45))
                 {
-                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 69, pos.Y + 69), 1);
+                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 69, pos.Y + 69), 1, DC);
                 }
                 else if ((frame > 0 && frame <= 15) || (frame >= 45 && frame < 60))
                 {
-                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 69, pos.Y + 69), 2);
+                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 69, pos.Y + 69), 2, DC);
                 }
                 else
                 {
-                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 69, pos.Y + 69), 3);
+                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 69, pos.Y + 69), 3, DC);
                 }
-                new RippleEffect(30, 400, new System.Drawing.Point(pos.X + 69, pos.Y + 69)).PushTo(layer);
+                new RippleEffect(30, 400, new System.Drawing.Point(pos.X + 69, pos.Y + 69), DC).PushTo(layer);
             };
             btn.PushTo(layer, w);
-            if(dk!=null)
-                dk.Range.Add(area);
+            
+                DarkCurtain.Range.AddUpdate(area);
         }
     }
 
@@ -529,14 +697,14 @@ namespace Shinengine
         double frame = 90d;
         float opdivied = 0;
 
-        public MouseLongPoint(Layer layer, Direct2DWindow vm, System.Drawing.Point pos, UIElement w, double time, double speed = 1, DarkCurtain dk = null)
+        public MouseLongPoint(DeviceContext DC, Layer layer, Direct2DWindow vm, System.Drawing.Point pos, UIElement w, double time, double speed = 1)
         {
             speed = 1 / speed;
             var area = new SharpDX.Direct2D1.Ellipse(new RawVector2(pos.X, pos.Y), 80, 80);
             time = time * 60d;
             pos.X -= 80;
             pos.Y -= 80;
-            btn = new InteractiveObject(img) { Position = pos };
+            btn = new InteractiveObject(img, DC) { Position = pos };
             img.Proc += (s) =>
             {
 
@@ -580,13 +748,12 @@ namespace Shinengine
                         }
                         else
                         {
-                            if (dk != null)
-                                dk.Range.Remove(area);
+                                DarkCurtain.Range.RemoveUpdate(area);
                             btn.PopFrom();
                             vm.CleanTasks.Add(btn);
                             vm.CleanTasks.Add(img);
                             if (!uped)
-                                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 3);
+                                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 3,DC);
                             return false;
                         }
                         img.Update();
@@ -598,12 +765,11 @@ namespace Shinengine
                     frame -= speed;
                 else
                 {
-                    if (dk != null)
-                        dk.Range.Remove(area);
+                        DarkCurtain.Range.RemoveUpdate(area);
                     btn.PopFrom();
                     vm.CleanTasks.Add(btn);
                     vm.CleanTasks.Add(img);
-                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 3);
+                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 3, DC);
                     return false;
                 }
                 img.Update();
@@ -622,24 +788,24 @@ namespace Shinengine
                 t.Handled = true;
                 if (frame > 25 && frame < 35)
                 {
-                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 0);
+                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 0, DC);
 
                 }
                 else if ((frame > 15 && frame <= 25) || (frame >= 35 && frame < 45))
                 {
-                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 1);
+                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 1, DC);
                 }
                 else if ((frame > 0 && frame <= 15) || (frame >= 45 && frame < 60))
                 {
-                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 2);
+                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 2, DC);
                 }
                 else
                 {
-                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 3);
+                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 3, DC);
                     uped = true;
                     btn.Saturation = 0;
                 }
-                new RippleEffect(30, 400, new System.Drawing.Point(pos.X + 80, pos.Y + 80)).PushTo(layer);
+                new RippleEffect(30, 400, new System.Drawing.Point(pos.X + 80, pos.Y + 80), DC).PushTo(layer);
             };
             btn.MouseUp += (e, t) =>
             {
@@ -654,32 +820,32 @@ namespace Shinengine
                 t.Handled = true;
                 if (frame > 95 && frame < 105)
                 {
-                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 0);
+                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 0, DC);
 
                 }
                 else if ((frame > 85 && frame <= 95) || (frame >= 105 && frame < 115))
                 {
                     btn.Saturation = 0f;
-                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 1);
+                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 1, DC);
                 }
                 else if (frame >= 70 && frame <= 85)
                 {
                     btn.Saturation = 0f;
-                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 2);
+                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 2, DC);
                 }
                 else
                 {
                     btn.Saturation = 0f;
-                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 3);
+                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 3, DC);
                 }
-                new RippleEffect(30, 400, new System.Drawing.Point(pos.X + 80, pos.Y + 80)).PushTo(layer);
+                new RippleEffect(30, 400, new System.Drawing.Point(pos.X + 80, pos.Y + 80), DC).PushTo(layer);
             };
             btn.PushTo(layer, w);
-            if (dk != null)
-                dk.Range.Add(area);
+       
+                DarkCurtain.Range.AddUpdate(area);
         }
     }
-    sealed public class RippleEffect : BRenderableObject
+    sealed public class RippleEffect : RenderableObject
     {
         double _r = 0d;
         double _rele_r = 0d;
@@ -688,7 +854,7 @@ namespace Shinengine
         double frame = 0;
         double _time;
         Point pos;
-        public RippleEffect(double time, double r, System.Drawing.Point pos)
+        public RippleEffect(double time, double r, System.Drawing.Point pos,DeviceContext DC):base(DC)
         {
             _r = r;
             rise = r / time;
@@ -710,10 +876,10 @@ namespace Shinengine
             });
             this.pos = new Point(pos.X, pos.Y);
         }
-        public override void Render(DeviceContext dc)
+        public override void Render()
         {
-            using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(dc, new RawColor4(0.7f, 0.7f, 0.7f, 1f - ((float)frame / (float)_time))))
-                dc.DrawEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2((float)pos.X, (float)pos.Y), (float)(_rele_r / 2d), (float)(_rele_r / 2d)), b, 3);
+            using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(HostDC, new RawColor4(0.7f, 0.7f, 0.7f, 1f - ((float)frame / (float)_time))))
+                HostDC.DrawEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2((float)pos.X, (float)pos.Y), (float)(_rele_r / 2d), (float)(_rele_r / 2d)), b, 3);
         }
     }
 
@@ -725,8 +891,11 @@ namespace Shinengine
         double frame = 90d;
         float opdivied = 0;
 
-        public KeyboardSinglePoint(Layer layer, Direct2DWindow vm, System.Drawing.Point pos, UIElement w, Key key, string info, double speed = 1,DarkCurtain dk=null)
+        DeviceContext DC;
+
+        public KeyboardSinglePoint(DeviceContext DC, Layer layer, Direct2DWindow vm, System.Drawing.Point pos, UIElement w, Key key, string info, double speed = 1)
         {
+            this.DC = DC;
             speed = 1 / speed;
             var area = new SharpDX.Direct2D1.Ellipse(new RawVector2(pos.X, pos.Y), 66, 66);
             pos.X -= 69;
@@ -736,7 +905,7 @@ namespace Shinengine
             this.vm = vm;
             this.pos = pos;
             this.key = key;
-            btn = new InteractiveObject(img) { Position = pos };
+            btn = new InteractiveObject(img, DC) { Position = pos };
             img.Proc += (s) =>
             {
                 s.BeginDraw();
@@ -749,7 +918,7 @@ namespace Shinengine
                 if (frame > 30)
                 {
                     double r = 132 - 100d * ((90d - frame) / 60d);
-                    using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 0.2f, 1, 1)), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
+                    using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(1, 0.2f, 0, 1)), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
                     {
                         s.DrawEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(69, 69), (float)(r / 2), (float)(r / 2)), b, 4);
                         if (!clicked)
@@ -762,7 +931,7 @@ namespace Shinengine
                 else
                 {
                     double r = 34 * (frame / 30d);
-                    using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 0.2f, 1, 1)))
+                    using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(1, 0.2f, 0, 1)))
                         s.FillEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(69, 69), (float)(r / 2), (float)(r / 2)), b);
                 }
                 wfactory.Dispose();
@@ -783,8 +952,7 @@ namespace Shinengine
                         }
                         else
                         {
-                            if (dk != null)
-                                dk.Range.Remove(area);
+                                DarkCurtain.Range.RemoveUpdate(area);
                             btn.PopFrom();
                             vm.CleanTasks.Add(btn);
                             vm.CleanTasks.Add(img);
@@ -801,13 +969,12 @@ namespace Shinengine
                     frame -= speed;
                 else
                 {
-                    if (dk != null)
-                        dk.Range.Remove(area);
+                        DarkCurtain.Range.RemoveUpdate(area);
                     btn.PopFrom();
                     vm.CleanTasks.Add(btn);
                     vm.CleanTasks.Add(img);
                     w.KeyDown -= KD;
-                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 69, pos.Y + 69), 3);
+                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 69, pos.Y + 69), 3, DC);
                     return false;
                 }
                 img.Update();
@@ -815,8 +982,7 @@ namespace Shinengine
             });
             w.KeyDown += KD;
             btn.PushTo(layer, w);
-            if (dk != null)
-                dk.Range.Add(area);
+                DarkCurtain.Range.AddUpdate(area);
         }
         private void KD(object s, KeyEventArgs t)
         {
@@ -832,29 +998,29 @@ namespace Shinengine
             t.Handled = true;
             if (frame > 25 && frame < 35)
             {
-                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 69, pos.Y + 69), 0);
+                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 69, pos.Y + 69), 0, DC);
 
             }
             else if ((frame > 15 && frame <= 25) || (frame >= 35 && frame < 45))
             {
-                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 69, pos.Y + 69), 1);
+                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 69, pos.Y + 69), 1, DC);
             }
             else if ((frame > 0 && frame <= 15) || (frame >= 45 && frame < 60))
             {
-                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 69, pos.Y + 69), 2);
+                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 69, pos.Y + 69), 2, DC);
             }
             else
             {
-                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 69, pos.Y + 69), 3);
+                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 69, pos.Y + 69), 3, DC);
             }
-            new RippleEffect(30, 400, new System.Drawing.Point(pos.X + 69, pos.Y + 69)).PushTo(layer);
+            new RippleEffect(30, 400, new System.Drawing.Point(pos.X + 69, pos.Y + 69), DC).PushTo(layer);
         }
         Layer layer = null;
         Direct2DWindow vm = null;
         System.Drawing.Point pos;
         Key key;
     }
-
+    
     class KeyboardLongPoint
     {
         InteractiveObject btn = null;
@@ -864,15 +1030,15 @@ namespace Shinengine
         double frame = 90d;
         float opdivied = 0;
 
-
+        DeviceContext DC;
         //////
         Layer layer = null;
         Direct2DWindow vm = null;
         System.Drawing.Point pos;
         Key key;
-        public KeyboardLongPoint(Layer layer, Direct2DWindow vm, System.Drawing.Point pos, UIElement w, double time, Key key, string info, double speed = 1, DarkCurtain dk = null)
+        public KeyboardLongPoint(DeviceContext DC, Layer layer, Direct2DWindow vm, System.Drawing.Point pos, UIElement w, double time, Key key, string info, double speed = 1)
         {
-
+            this.DC = DC;
             speed = 1 / speed;
             var area = new SharpDX.Direct2D1.Ellipse(new RawVector2(pos.X, pos.Y), 80, 80);
             time = time * 60d;
@@ -882,7 +1048,7 @@ namespace Shinengine
             this.vm = vm;
             this.pos = pos;
             this.key = key;
-            btn = new InteractiveObject(img) { Position = pos };
+            btn = new InteractiveObject(img, DC) { Position = pos };
             img.Proc += (s) =>
             {
 
@@ -895,7 +1061,7 @@ namespace Shinengine
                 if (frame > 30)
                 {
                     double r = 110 - 100d * ((90d - frame) / 60d);
-                    using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 1f, 0.2f, 1)), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
+                    using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 1f, 0.8f, 1)), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
                     {
                         s.DrawEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(80, 80), (float)(r / 2), (float)(r / 2)), b, 4);
                         if (!downed)
@@ -909,7 +1075,7 @@ namespace Shinengine
                 else
                 {
                     double r = 18 * (frame / 30d);
-                    using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 1f, 0.2f, 1)))
+                    using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 1f, 0.8f, 1)))
                         s.FillEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(80, 80), (float)(r / 2), (float)(r / 2)), b);
                 }
                 using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.6f, 0.6f, 0.6f, 0.4f)))
@@ -935,15 +1101,14 @@ namespace Shinengine
                         }
                         else
                         {
-                            if (dk != null)
-                                dk.Range.Remove(area);
+                                DarkCurtain.Range.RemoveUpdate(area);
                             btn.PopFrom();
                             vm.CleanTasks.Add(btn);
                             vm.CleanTasks.Add(img);
                             w.KeyDown -= KD;
                             w.KeyUp -= KU;
                             if (!uped)
-                                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 3);
+                                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 3, DC);
                             return false;
                         }
                         img.Update();
@@ -955,14 +1120,13 @@ namespace Shinengine
                     frame -= speed;
                 else
                 {
-                    if (dk != null)
-                        dk.Range.Remove(area);
+                        DarkCurtain.Range.RemoveUpdate(area);
                     btn.PopFrom();
                     vm.CleanTasks.Add(btn);
                     vm.CleanTasks.Add(img);
                     w.KeyDown -= KD;
                     w.KeyUp -= KU;
-                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 3);
+                    new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 3, DC);
                     return false;
                 }
                 img.Update();
@@ -971,8 +1135,8 @@ namespace Shinengine
             w.KeyDown += KD;
             w.KeyUp += KU;
             btn.PushTo(layer, w);
-            if (dk != null)
-                dk.Range.Add(area);
+   
+                DarkCurtain.Range.AddUpdate(area);
         }
         private void KU(object s, KeyEventArgs t)
         {
@@ -989,25 +1153,25 @@ namespace Shinengine
             t.Handled = true;
             if (frame > 95 && frame < 105)
             {
-                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 0);
+                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 0, DC);
 
             }
             else if ((frame > 85 && frame <= 95) || (frame >= 105 && frame < 115))
             {
                 btn.Saturation = 0f;
-                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 1);
+                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 1, DC);
             }
             else if (frame >= 70 && frame <= 85)
             {
                 btn.Saturation = 0f;
-                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 2);
+                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 2, DC);
             }
             else
             {
                 btn.Saturation = 0f;
-                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 3);
+                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 3, DC);
             }
-            new RippleEffect(30, 400, new System.Drawing.Point(pos.X + 80, pos.Y + 80)).PushTo(layer);
+            new RippleEffect(30, 400, new System.Drawing.Point(pos.X + 80, pos.Y + 80), DC).PushTo(layer);
         }
         private void KD(object s, KeyEventArgs t)
         {
@@ -1024,119 +1188,50 @@ namespace Shinengine
             t.Handled = true;
             if (frame > 25 && frame < 35)
             {
-                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 0);
+                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 0, DC);
 
             }
             else if ((frame > 15 && frame <= 25) || (frame >= 35 && frame < 45))
             {
-                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 1);
+                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 1, DC);
             }
             else if ((frame > 0 && frame <= 15) || (frame >= 45 && frame < 60))
             {
-                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 2);
+                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 2, DC);
             }
             else
             {
-                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 3);
+                new PerfectInfo(layer, vm, new System.Drawing.Point(pos.X + 80, pos.Y + 80), 3, DC);
                 uped = true;
                 btn.Saturation = 0;
             }
-            new RippleEffect(30, 400, new System.Drawing.Point(pos.X + 80, pos.Y + 80)).PushTo(layer);
+            new RippleEffect(30, 400, new System.Drawing.Point(pos.X + 80, pos.Y + 80), DC).PushTo(layer);
         }
     }
 
-    class DarkCurtain : BRenderableObject, IDisposable
+    static class DarkCurtain
     {
-        private readonly DrawingImage mask;
-        public readonly List<SharpDX.Direct2D1.Ellipse> Range = new List<SharpDX.Direct2D1.Ellipse>();
-        public DarkCurtain(System.Drawing.Size Size)
-        {
-            mask = new DrawingImage(Size);
-            mask.Proc += (dc) =>
-            {
-                dc.BeginDraw();
-                dc.Clear(new RawColor4(0, 0, 0, 1));
-               
-                var copy_Range = Range.ToList();
-                foreach (var i in copy_Range)
-                {
-                    var rp = new SharpDX.Direct2D1.RadialGradientBrushProperties
-                    {
-                        GradientOriginOffset = new RawVector2(0, 0),
-                        Center=i.Point,
-                        RadiusX=i.RadiusX,
-                        RadiusY=i.RadiusY
-                    };
-                    var gp = new SharpDX.Direct2D1.GradientStopCollection(
-                        dc, 
-                        new SharpDX.Direct2D1.GradientStop[] 
-                        { 
-                            new SharpDX.Direct2D1.GradientStop 
-                            { Color = new RawColor4(0, 0, 0, 0), Position = 0f },
-                            new SharpDX.Direct2D1.GradientStop 
-                            { Color = new RawColor4(1, 1, 1, 1), Position = 1f } 
-                        });
+        static DrawingImage Mask = new DrawingImage(new System.Drawing.Size(2560, 1440));
 
-                    dc.PushAxisAlignedClip(new RawRectangleF(i.Point.X - i.RadiusX, i.Point.Y - i.RadiusY, i.Point.X + i.RadiusX, i.Point.Y + i.RadiusY), AntialiasMode.PerPrimitive);
-                    dc.Clear(new RawColor4(0,0,0,0));
-                    using (RadialGradientBrush b = new RadialGradientBrush(dc, rp, gp))
-                        dc.FillRectangle(new RawRectangleF(i.Point.X - i.RadiusX, i.Point.Y - i.RadiusY, i.Point.X + i.RadiusX, i.Point.Y + i.RadiusY), b);
-                    dc.PopAxisAlignedClip();
-                    gp.Dispose();
-                }
-                dc.EndDraw();
+        static DarkCurtain()
+        {
+            Mask.Proc += (dc) =>
+            {
+              //  dc.BeginDraw();
+              //  dc.Clear(new RawColor4(0,0,0,0));
+                
             };
         }
-        public float Opacity { get; set; } = 0.7f;
 
-        public void Dispose()
+        static public List<SharpDX.Direct2D1.Ellipse> Range = new List<SharpDX.Direct2D1.Ellipse>();
+        public static void AddUpdate(this List<SharpDX.Direct2D1.Ellipse> list, SharpDX.Direct2D1.Ellipse e)
         {
-            mask.Dispose();
+            list.Add(e);
         }
 
-        public override void Render(DeviceContext dc)
+        public static void RemoveUpdate(this List<SharpDX.Direct2D1.Ellipse> list, SharpDX.Direct2D1.Ellipse e)
         {
-            var m_layer = new SharpDX.Direct2D1.Layer(dc, new SharpDX.Size2F(dc.Size.Width, dc.Size.Height));
-            mask.Update();
-            var output = mask.Output;
-            /*
-            var m_lock = output.Lock(SharpDX.WIC.BitmapLockFlags.Write);
-            for (int i=0;i< m_lock.Size.Height; i++)
-            {
-                IntPtr base_line = m_lock.Data.DataPointer + m_lock.Stride * i;
-                for(int q=0;q < m_lock.Size.Width; q++)
-                {
-                    unsafe
-                    {
-                        byte* pPixel = (byte*)(base_line + 4 * q);
-                        *(pPixel + 3) = (byte)(255 - *(pPixel + 3));
-                    }
-                }
-
-            }
-            m_lock.Dispose();
-            */
-            var mask_per = SharpDX.Direct2D1.Bitmap.FromWicBitmap(dc, output);
-            var omask = new BitmapBrush(dc, mask_per);
-            LayerParameters lp = new LayerParameters()
-            {
-                Opacity = 1.0f,
-                ContentBounds = new RawRectangleF(0, 0, dc.Size.Width, dc.Size.Height),
-                LayerOptions=LayerOptions.None,
-                MaskAntialiasMode=AntialiasMode.PerPrimitive,
-                OpacityBrush = omask
-            };
-            dc.PushLayer(ref lp, m_layer);
-
-
-            using (SolidColorBrush b = new SolidColorBrush(dc, new RawColor4(0, 0, 0, Opacity)))
-                dc.FillRectangle(new RawRectangleF(0, 0, dc.Size.Width, dc.Size.Height), b);
-            dc.PopLayer();
-
-            omask.Dispose();
-            mask_per.Dispose();
-            output.Dispose();
-            m_layer.Dispose();
+            list.Remove(e);
         }
     }
 }

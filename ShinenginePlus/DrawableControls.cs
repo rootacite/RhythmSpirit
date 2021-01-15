@@ -44,6 +44,7 @@ namespace ShinenginePlus.DrawableControls
 
     public abstract class ImageSource : IDisposable
     {
+        public bool Updated { get; protected set; } = true;
         public Size PixelSize { get; protected set; }
         protected ImagingFactory iFactory = new ImagingFactory();
         public abstract WICBitmap Output { get; }
@@ -55,8 +56,10 @@ namespace ShinenginePlus.DrawableControls
     }
     sealed public class DrawingImage : ImageSource
     {
+        // 存在错误 绘图代码和Output可能同时被调用 并引发错误
         D2DFactory DxFac = new D2DFactory();
         WICBitmap buffer = null;
+        WICBitmap load_buffer = null;
         WicRenderTarget View = null;
         public DrawingImage(Size size)
         {
@@ -76,11 +79,17 @@ namespace ShinenginePlus.DrawableControls
                 0,
                 RenderTargetUsage.None,
                 SharpDX.Direct2D1.FeatureLevel.Level_DEFAULT));
+
+            load_buffer = new WICBitmap(iFactory, buffer, BitmapCreateCacheOption.CacheOnLoad);
         }
 
         public void Update()
         {
             Proc?.Invoke(View);
+            var old_proc = load_buffer;
+            load_buffer = new WICBitmap(iFactory, buffer, BitmapCreateCacheOption.CacheOnLoad);
+            old_proc?.Dispose();
+            Updated = true;
         }
         public delegate void DrawProc(WicRenderTarget view);
         public event DrawProc Proc;
@@ -88,7 +97,10 @@ namespace ShinenginePlus.DrawableControls
         {
             get
             {
-                return new WICBitmap(iFactory, buffer, BitmapCreateCacheOption.CacheOnLoad);
+                Updated = false;
+                if (load_buffer?.IsDisposed == false)
+                    return new WICBitmap(iFactory, load_buffer, BitmapCreateCacheOption.CacheOnLoad);
+                else return null;
             }
         }
 
@@ -115,11 +127,13 @@ namespace ShinenginePlus.DrawableControls
             buffer = Direct2DHelper.LoadBitmap(path);
             PixelSize = new Size(buffer.Size.Width, buffer.Size.Height);
             old.Dispose();
+            Updated = true;
         }
         public override WICBitmap Output
         {
             get
             {
+                Updated = false;
                 return new WICBitmap(iFactory, buffer, BitmapCreateCacheOption.CacheOnLoad);
             }
         }
@@ -135,7 +149,14 @@ namespace ShinenginePlus.DrawableControls
     {
         IntPtr buffer = (IntPtr)0;
         System.Drawing.Bitmap buffer_convert = null;
-        public Graphics graphics = null;
+        Graphics graphics = null;
+        public Graphics Graphics {
+            get
+            {
+                Updated = true;
+                return graphics;
+            }
+        }
         
         public GDIBitmap(Size size)
         {
@@ -153,6 +174,7 @@ namespace ShinenginePlus.DrawableControls
         {
             get
             {
+                Updated = false;
                 return new WICBitmap(iFactory, buffer_convert.Width, buffer_convert.Height, SharpDX.WIC.PixelFormat.Format32bppPBGRA, new DataRectangle(buffer, buffer_convert.Width * 4));
             }
         }
@@ -167,7 +189,7 @@ namespace ShinenginePlus.DrawableControls
     /// <summary>
     /// Console style text, Complete
     /// </summary>
-    sealed public class DrawableText : BRenderableObject, IDisposable
+    sealed public class DrawableText : RenderableObject, IDisposable
     {
         /// <summary>
         /// word/s
@@ -187,7 +209,7 @@ namespace ShinenginePlus.DrawableControls
         public string text = "";
         SharpDX.DirectWrite.Factory wfactory = null;
         SharpDX.DirectWrite.TextFormat wformat = null;
-        public DrawableText(string t, string name, float size)
+        public DrawableText(string t, string name, float size , DeviceContext DC):base(DC)
         {
             text += t;
             wfactory = new SharpDX.DirectWrite.Factory();
@@ -221,13 +243,13 @@ namespace ShinenginePlus.DrawableControls
             set;
             get;
         } = new RawColor4(1, 1, 1, 1);
-        public override void Render(DeviceContext dc)
+        public override void Render()
         {
             if (drawtime < 30)
-                using (SolidColorBrush brush = new SharpDX.Direct2D1.SolidColorBrush(dc, Color))
-                    dc.DrawText(this.text + "_", wformat, Range, brush);
-            else using (SolidColorBrush brush = new SharpDX.Direct2D1.SolidColorBrush(dc, Color))
-                    dc.DrawText(this.text, wformat, Range, brush);
+                using (SolidColorBrush brush = new SharpDX.Direct2D1.SolidColorBrush(HostDC, Color))
+                    HostDC.DrawText(this.text + "_", wformat, Range, brush);
+            else using (SolidColorBrush brush = new SharpDX.Direct2D1.SolidColorBrush(HostDC, Color))
+                    HostDC.DrawText(this.text, wformat, Range, brush);
         }
 
 
@@ -235,30 +257,6 @@ namespace ShinenginePlus.DrawableControls
         public void PushString(string Text)
         {
             bufferChars.AddRange(Text.ToCharArray());
-        }
-    }
-    sealed public class WriteFilledRect : BRenderableObject
-    {
-        float opraty = 0f;
-        public override void Render(DeviceContext dc)
-        {
-            var asn = new RawRectangleF(0f, 0f, 1280f, 720f);
-            using (SolidColorBrush bs = new SolidColorBrush(dc, new RawColor4(1, 1, 1, opraty)))
-                dc.FillRectangle(asn, bs);
-
-
-        }
-        public WriteFilledRect()
-        {
-            this.AddUpdateProcess(() =>
-            {
-                if (opraty <= 1f)
-                {
-                    opraty += 1f / 90f;
-                    return true;
-                }
-                else return false;
-            });
         }
     }
     public class InteractiveObject : RenderableImage
@@ -328,7 +326,7 @@ namespace ShinenginePlus.DrawableControls
             }
             MouseMove?.Invoke(this, e);
         }
-        public InteractiveObject(ImageSource wic) : base(wic)
+        public InteractiveObject(ImageSource wic, DeviceContext DC) : base(wic, DC)
         {
         }
         //  public delegate bool CollisionEvent(InteractiveObject obj, double ort);
@@ -395,32 +393,10 @@ namespace ShinenginePlus.DrawableControls
         }
     }
 
-    sealed public class MultipleLayerImage : BRenderableObject, IDisposable
+
+    public class RenderableImage : RenderableObject, IDisposable
     {
-        public void Dispose()
-        {
-            throw new NotImplementedException();
-        }
-
-        public override void Render(DeviceContext dc)
-        {
-            throw new NotImplementedException();
-        }
-    }
-
-    public class RenderableImage : BRenderableObject, IDisposable
-    {
-        static private RawMatrix3x2 BuildOrientationMatrix(double Radian)
-        {
-            var result = new RawMatrix3x2((float)Math.Cos(Radian), (float)Math.Sin(Radian), (float)-Math.Sin(Radian), (float)Math.Cos(Radian), 0f, 0f);
-            return result;
-        }
-        static private RawMatrix3x2 MatrixMultiplication(RawMatrix3x2 x1, RawMatrix3x2 x2)
-        {
-            var result = new RawMatrix3x2(x1.M11 * x2.M11 + x1.M21 + x2.M12, x1.M11 * x2.M21 + x1.M21 * x2.M22, x1.M12 * x2.M11 + x1.M22 * x2.M12, x1.M12 * x2.M21 + x1.M22 * x2.M22, 0f, 0f);
-            return result;
-        }
-
+        bool size_changed = false;
         public float Saturation { get; set; } = 1f;
         public float Brightness { get; set; } = 0.5f;
         public double Orientation { get; set; } = 0;
@@ -433,6 +409,7 @@ namespace ShinenginePlus.DrawableControls
             }
             set
             {
+                size_changed = true;
                 _Size = new Size2(value.Width, value.Height);
             }
         }
@@ -451,52 +428,73 @@ namespace ShinenginePlus.DrawableControls
         }
 
         public float Opacity { get; set; } = 1.0f;
-        private ImageSource Source = null;
-        private SharpDX.Direct2D1.Image Output(DeviceContext rDc)
+        protected ImageSource Source = null;
+        protected SharpDX.Direct2D1.Image Output(DeviceContext rDc)
         {
-            var ntdx = D2DBitmap.FromWicBitmap(rDc, _Pelete);
+            D2DBitmap ntdx = null;
+            try
+            {
+
+                ntdx = D2DBitmap.FromWicBitmap(rDc, _Pelete);
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show(e.ToString());
+
+            }
+            Image result1;
+
             var blEf = new SharpDX.Direct2D1.Effect(rDc, Effect.Opacity);
 
             blEf.SetInput(0, ntdx, new RawBool());
             blEf.SetValue(0, Opacity);
 
-            var result1 = blEf.Output;
+            result1 = blEf.Output;
             blEf.Dispose();
+            if (size_changed)
+            {
+                var tfEf = new SharpDX.Direct2D1.Effects.AffineTransform2D(rDc);
+                tfEf.SetInput(0, result1, new RawBool());
 
-            var tfEf = new SharpDX.Direct2D1.Effects.AffineTransform2D(rDc);
-            tfEf.SetInput(0, result1, new RawBool());
+                result1.Dispose();
+                var x_rate = _Size.Width / (double)_Pelete.Size.Width;
+                var y_rate = _Size.Height / (double)_Pelete.Size.Height;
+                tfEf.TransformMatrix = new RawMatrix3x2((float)x_rate, 0f, 0f, (float)y_rate, 0f, 0f);
+                result1 = tfEf.Output;
+                tfEf.Dispose();
+            }
+            if (Orientation != 1.0f)
+            {
+                var tfEf1 = new SharpDX.Direct2D1.Effects.AffineTransform2D(rDc);
+                tfEf1.SetInput(0, result1, new RawBool());
 
-            result1.Dispose();
-            var x_rate = _Size.Width / (double)_Pelete.Size.Width;
-            var y_rate = _Size.Height / (double)_Pelete.Size.Height;
-            tfEf.TransformMatrix = new RawMatrix3x2((float)x_rate, 0f, 0f, (float)y_rate, 0f, 0f);
-            result1 = tfEf.Output;
-            tfEf.Dispose();
-            var tfEf1 = new SharpDX.Direct2D1.Effects.AffineTransform2D(rDc);
-            tfEf1.SetInput(0, result1, new RawBool());
+                result1.Dispose();
+                var mr32 = Matrix3x2.CreateRotation((float)Orientation, new Vector2(RotationPoint.X, RotationPoint.Y));
+                tfEf1.TransformMatrix = new RawMatrix3x2(mr32.M11, mr32.M12, mr32.M21, mr32.M22, mr32.M31, mr32.M32);
+                result1 = tfEf1.Output;
+                tfEf1.Dispose();
+            }
+            if (this.Saturation != 1f)
+            {
+                var stEf = new SharpDX.Direct2D1.Effects.Saturation(rDc);
+                stEf.SetInput(0, result1, new RawBool());
 
-            result1.Dispose();
-            var mr32 = Matrix3x2.CreateRotation((float)Orientation, new Vector2(RotationPoint.X, RotationPoint.Y));
-            tfEf1.TransformMatrix = new RawMatrix3x2(mr32.M11, mr32.M12, mr32.M21, mr32.M22, mr32.M31, mr32.M32);
-            result1 = tfEf1.Output;
-            tfEf1.Dispose();
-            var stEf = new SharpDX.Direct2D1.Effects.Saturation(rDc);
-            stEf.SetInput(0, result1, new RawBool());
+                result1.Dispose();
+                stEf.Value = Saturation;
+                result1 = stEf.Output;
+                stEf.Dispose();
+            }
+            if (this.Brightness != 0.5f)
+            {
+                var btEf = new SharpDX.Direct2D1.Effects.Brightness(rDc);
+                btEf.SetInput(0, result1, new RawBool());
 
-            result1.Dispose();
-            stEf.Value = Saturation;
-            result1 = stEf.Output;
-            stEf.Dispose();
-
-            var btEf = new SharpDX.Direct2D1.Effects.Brightness(rDc);
-            btEf.SetInput(0, result1, new RawBool());
-
-            result1.Dispose();
-            btEf.BlackPoint = new RawVector2(1.0f - Brightness, Brightness);
-            //  btEf.WhitePoint =;
-            result1 = btEf.Output;
-            btEf.Dispose();
-
+                result1.Dispose();
+                btEf.BlackPoint = new RawVector2(1.0f - Brightness, Brightness);
+                //  btEf.WhitePoint =;
+                result1 = btEf.Output;
+                btEf.Dispose();
+            }
             ntdx.Dispose();
             return result1;
 
@@ -511,7 +509,7 @@ namespace ShinenginePlus.DrawableControls
                 return disposedValue;
             }
         }
-        public RenderableImage(ImageSource im)
+        public RenderableImage(ImageSource im,DeviceContext DC):base(DC)
         {
 
             Source = im;
@@ -519,19 +517,17 @@ namespace ShinenginePlus.DrawableControls
             this._Size = new Size2(this._Pelete.Size.Width, this._Pelete.Size.Height);
 
             RotationPoint = new Point(this._Pelete.Size.Width / 2, this._Pelete.Size.Height / 2);
+        }
 
-            AddUpdateProcess(() =>
+        public override void Render()
+        {
+            if (Source.Updated)
             {
                 _Pelete?.Dispose();
                 _Pelete = Source.Output;
-                return true;
-            });
-        }
-
-        public override void Render(DeviceContext dc)
-        {
-            using (var fLpt = Output(dc))
-                dc.DrawImage(fLpt, new RawVector2(_Position.X, _Position.Y), null, SharpDX.Direct2D1.InterpolationMode.Linear, CompositeMode.SourceOver);
+            }
+            using (Image PrepairedImage = Output(HostDC))
+                HostDC.DrawImage(PrepairedImage, new RawVector2(_Position.X, _Position.Y), null, SharpDX.Direct2D1.InterpolationMode.Linear, CompositeMode.SourceOver);
         }
 
         protected virtual void Dispose(bool disposing)
@@ -565,34 +561,34 @@ namespace ShinenginePlus.DrawableControls
             GC.SuppressFinalize(this);
         }
     }
-    sealed public class ClosedGemo : BRenderableObject
+    sealed public class ClosedGemo : RenderableObject
     {
         public RawColor4 Border { get; set; }
         public RawColor4 Filler { get; set; }
 
         public int Thickness { get; set; } = 1;
         private readonly Point[] Path;
-        public ClosedGemo(Point[] Path, RawColor4 cBorder, RawColor4 cFiller)
+        public ClosedGemo(Point[] Path, RawColor4 cBorder, RawColor4 cFiller,DeviceContext DC):base(DC)
         {
             this.Path = (Point[])Path.Clone();
 
             Border = new RawColor4(cBorder.R, cBorder.G, cBorder.B, cBorder.A);
             Filler = new RawColor4(cFiller.R, cFiller.G, cFiller.B, cFiller.A);
         }
-        public override void Render(DeviceContext dc)
+        public override void Render()
         {
-            using (SolidColorBrush BorderBrush = new SolidColorBrush(dc, Border), FillerBrush = new SolidColorBrush(dc, Filler))
+            using (SolidColorBrush BorderBrush = new SolidColorBrush(HostDC, Border), FillerBrush = new SolidColorBrush(HostDC, Filler))
             {
                 for (int i = 0; i < Path.Length - 1; i++)
                 {
 
-                    var area = new Mesh(dc, new Triangle[] { new Triangle() { Point1 = new RawVector2(Path[0].X, Path[0].Y), Point2 = new RawVector2(Path[i].X, Path[i].Y), Point3 = new RawVector2(Path[i + 1].X, Path[i + 1].Y) } });
+                    var area = new Mesh(HostDC, new Triangle[] { new Triangle() { Point1 = new RawVector2(Path[0].X, Path[0].Y), Point2 = new RawVector2(Path[i].X, Path[i].Y), Point3 = new RawVector2(Path[i + 1].X, Path[i + 1].Y) } });
 
-                    dc.FillMesh(area, FillerBrush);
-                    dc.DrawLine(new RawVector2(Path[i].X, Path[i].Y), new RawVector2(Path[i + 1].X, Path[i + 1].Y), BorderBrush, Thickness);
+                    HostDC.FillMesh(area, FillerBrush);
+                    HostDC.DrawLine(new RawVector2(Path[i].X, Path[i].Y), new RawVector2(Path[i + 1].X, Path[i + 1].Y), BorderBrush, Thickness);
                     area.Dispose();
                 }
-                dc.DrawLine(new RawVector2(Path[Path.Length - 1].X, Path[Path.Length - 1].Y), new RawVector2(Path[0].X, Path[0].Y), BorderBrush, Thickness);
+                HostDC.DrawLine(new RawVector2(Path[Path.Length - 1].X, Path[Path.Length - 1].Y), new RawVector2(Path[0].X, Path[0].Y), BorderBrush, Thickness);
 
             }
         }
@@ -622,7 +618,7 @@ namespace ShinenginePlus.DrawableControls
             }
         }
 
-        public BackGroundLayer(Size size, UIElement window, RawRectangleF Output)
+        public BackGroundLayer(Size size, UIElement window, RawRectangleF Output,DeviceContext DC):base(DC)
         {
             this.Size = new Size2(size.Width, size.Height);
             base.OutPutRange = Output;
@@ -672,18 +668,17 @@ namespace ShinenginePlus.DrawableControls
         /// <summary>
         /// size
         /// </summary>
-        public GroupLayer(Layer bk, Size2 Size)
+        public GroupLayer(Layer bk, Size2 Size,DeviceContext DC):base(DC)
         {
             this.Size = Size;
             _father = bk;
-            this.PushTo(_father);
         }
         public void Pop()
         {
             this.PopFrom(_father);
         }
 
-        private void PushTo(Layer RenderGroup)
+        public void PushTo(Layer RenderGroup)
         {
             if (IsShowed) throw new Exception("This object is already showed");
             RenderGroup.RenderGroup.Add(this);
@@ -737,57 +732,60 @@ namespace ShinenginePlus.DrawableControls
         {
             Effecting = Proc;
         }
-
-
+        public DeviceContext HostDC { get; private set; }
+        protected Layer(DeviceContext DC)
+        {
+            HostDC = DC;
+        }
         public RawRectangleF Range { get; set; } = new RawRectangleF(0, 0, 1280, 720);
         public RawRectangleF OutPutRange { get; set; } = new RawRectangleF(0, 0, 1280, 720);
         public abstract Point CursorPos { get; }
         public List<IDrawable> RenderGroup = new List<IDrawable>();
-        public void Render(DeviceContext dc)
+        public void Render()
         {
             ////////////////////////////////////
-            dc.EndDraw();
+            HostDC.EndDraw();
 
-            using (D2DBitmap loadBp = new D2DBitmap(dc, Size,
-                 new BitmapProperties1(dc.PixelFormat, dc.DotsPerInch.Width, dc.DotsPerInch.Height, BitmapOptions.Target | BitmapOptions.CannotDraw)), loadBp2 = new D2DBitmap(dc, Size,
-              new BitmapProperties1(dc.PixelFormat, dc.DotsPerInch.Width, dc.DotsPerInch.Height, BitmapOptions.None)))
+            using (D2DBitmap loadBp = new D2DBitmap(HostDC, Size,
+                 new BitmapProperties1(HostDC.PixelFormat, HostDC.DotsPerInch.Width, HostDC.DotsPerInch.Height, BitmapOptions.Target | BitmapOptions.CannotDraw)), loadBp2 = new D2DBitmap(HostDC, Size,
+              new BitmapProperties1(HostDC.PixelFormat, HostDC.DotsPerInch.Width, HostDC.DotsPerInch.Height, BitmapOptions.None)))
             {
-                var old_target = dc.Target;
+                var old_target = HostDC.Target;
 
 
-                dc.Target = loadBp;
+                HostDC.Target = loadBp;
 
-                dc.BeginDraw();
-                dc.Clear(Color);
+                HostDC.BeginDraw();
+                HostDC.Clear(Color);
                 var RCP = RenderGroup.ToArray();
                 foreach (var i in RCP)
                 {
-                    i.Render(dc);
+                    i.Render();
                 }
-                
-                dc.EndDraw();
+
+                HostDC.EndDraw();
 
                 if (Effecting != null)
                 {
                     loadBp2.CopyFromBitmap(loadBp);
-                    var resultEff = Effecting(loadBp2, dc);
+                    var resultEff = Effecting(loadBp2, HostDC);
                     var resultIm = resultEff.Output;
                     if (resultEff == null)
                     {
                         Effecting = null;
                         goto tag;
                     }
-                    dc.BeginDraw();
-                    dc.Clear(Color);
-                    dc.DrawImage(resultIm, new RawVector2(0, 0), null, SharpDX.Direct2D1.InterpolationMode.Linear, CompositeMode.SourceOver);
-                    dc.EndDraw();
+                    HostDC.BeginDraw();
+                    HostDC.Clear(Color);
+                    HostDC.DrawImage(resultIm, new RawVector2(0, 0), null, SharpDX.Direct2D1.InterpolationMode.Linear, CompositeMode.SourceOver);
+                    HostDC.EndDraw();
                     resultEff.Dispose();
                     resultIm.Dispose();
                 }
             tag:
                 loadBp2.CopyFromBitmap(loadBp);
-                dc.Target = old_target;
-                dc.BeginDraw();
+                HostDC.Target = old_target;
+                HostDC.BeginDraw();
 
                 if (old_target as D2DBitmap == null)
                     old_target.Dispose();
@@ -798,12 +796,17 @@ namespace ShinenginePlus.DrawableControls
 
                 }
 
-                dc.DrawBitmap(loadBp2, OutPutRange, 1f, SharpDX.Direct2D1.InterpolationMode.Linear, Range, null);
+                HostDC.DrawBitmap(loadBp2, OutPutRange, 1f, SharpDX.Direct2D1.InterpolationMode.Linear, Range, null);
 
 
             }
         }
-
+        private List<UpdateProcess> Updating = new List<UpdateProcess>();
+        public void AddUpdateProcess(UpdateProcess Proc)
+        {
+            Updating.Add(Proc);
+        }
+        public delegate bool UpdateProcess();
         public void Update()
         {
             var RCP = RenderGroup.ToArray();
@@ -812,7 +815,17 @@ namespace ShinenginePlus.DrawableControls
             {
                 i.Update();
             }
-
+            List<UpdateProcess> RemoveableUpdating = new List<UpdateProcess>();
+            var RUM = Updating.ToArray();
+            foreach (var i in RUM)
+            {
+                var result = i();
+                if (!result) RemoveableUpdating.Add(i);
+            }
+            foreach (var i in RemoveableUpdating)
+            {
+                Updating.Remove(i);
+            }
         }
 
         public Size2 Size
@@ -825,8 +838,13 @@ namespace ShinenginePlus.DrawableControls
             get;
         } = new RawColor4(1, 1, 1, 0);
     }
-    public abstract class BRenderableObject : IDrawable
+    public abstract class RenderableObject : IDrawable
     {
+        protected RenderableObject(DeviceContext DC)
+        {
+            HostDC = DC;
+        }
+        public DeviceContext HostDC { get; private set; }
         public void PushTo(Layer RenderGroup)
         {
             if (IsShowed) throw new Exception("This object is already showed");
@@ -882,7 +900,7 @@ namespace ShinenginePlus.DrawableControls
         private List<UpdateProcess> Updating = new List<UpdateProcess>();
         public delegate bool UpdateProcess();
 
-        public abstract void Render(DeviceContext dc);
+        public abstract void Render();
         public void Update()
         {
             List<UpdateProcess> RemoveableUpdating = new List<UpdateProcess>();
@@ -907,7 +925,7 @@ namespace ShinenginePlus.DrawableControls
 
     public interface IDrawable
     {
-        void Render(DeviceContext dc);
+        void Render();
         void Update();
     }
 }
