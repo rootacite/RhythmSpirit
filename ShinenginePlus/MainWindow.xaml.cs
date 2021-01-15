@@ -40,46 +40,14 @@ namespace Shinengine
     /// Interaction logic for MainWindow.xaml
     /// </summary>
     /// 
-
     public class MaskedRenderableImage : RenderableImage
     {
-        DrawingImage o_mask = null;
+      
 
 
         public MaskedRenderableImage(ImageSource im, DeviceContext dc) : base(im, dc)
         {
-            o_mask = new DrawingImage(new System.Drawing.Size(2560,1440));
-            o_mask.Proc += (dc) => 
-            {
-                dc.BeginDraw();
-
-                var RCM = DarkCurtain.Range.ToArray();
-                dc.Clear(new RawColor4(1, 1, 1, 0.75f));
-                foreach(var i in RCM)
-                {
-                    var rp = new SharpDX.Direct2D1.RadialGradientBrushProperties
-                    {
-                        GradientOriginOffset = new RawVector2(0, 0),
-                        Center = i.Point,
-                        RadiusX = i.RadiusX,
-                        RadiusY = i.RadiusY
-                    };
-                    var gp = new SharpDX.Direct2D1.GradientStopCollection(
-                        dc,
-                        new SharpDX.Direct2D1.GradientStop[]
-                        {
-                            new SharpDX.Direct2D1.GradientStop
-                            { Color = new RawColor4(1, 1, 1, 1), Position = 0f },
-                            new SharpDX.Direct2D1.GradientStop
-                            { Color = new RawColor4(1, 1, 1, 0.75f), Position = 1f }
-                        });
-
-                    using (RadialGradientBrush b = new RadialGradientBrush(dc, rp, gp))
-                        dc.FillEllipse(i, b);
-                }
-
-                dc.EndDraw();
-            };
+          
         }
 
         public override void Render()
@@ -89,33 +57,94 @@ namespace Shinengine
                 _Pelete?.Dispose();
                 _Pelete = Source.Output;
             }
-           
-            o_mask.Update();
+            
 
-            using (SharpDX.Direct2D1.Layer maskLayer = new SharpDX.Direct2D1.Layer(HostDC))  
-            using (WICBitmap mn_mask = o_mask.Output)
-            using (D2DBitmap mask = D2DBitmap.FromWicBitmap(HostDC, mn_mask))
-            using (BitmapBrush br = new BitmapBrush(HostDC, mask))
+
+            using (SharpDX.Direct2D1.Layer m_layer = new SharpDX.Direct2D1.Layer(HostDC, new SharpDX.Size2F(HostDC.Size.Width, HostDC.Size.Height)))  
+            using (D2DBitmap loadBp = new D2DBitmap(HostDC, Size,
+                 new BitmapProperties1(HostDC.PixelFormat, HostDC.DotsPerInch.Width, HostDC.DotsPerInch.Height, BitmapOptions.Target | BitmapOptions.CannotDraw)),
+                 mask = new D2DBitmap(HostDC, Size,
+              new BitmapProperties1(HostDC.PixelFormat, HostDC.DotsPerInch.Width, HostDC.DotsPerInch.Height, BitmapOptions.None)))
             {
-                LayerParameters lp = new LayerParameters
+                HostDC.EndDraw();
+                var old_target = HostDC.Target;
+                HostDC.Target = loadBp;
+
+                HostDC.BeginDraw();
+
+
+                HostDC.Clear(new RawColor4(1,1,1,0.25f));
+                var RCM = DarkCurtain.Range.ToArray();
+                foreach (var i in RCM)
                 {
-                    OpacityBrush = br,
-                    ContentBounds=new RawRectangleF(0,0,2560,1440),
-                    LayerOptions=LayerOptions.None,
-                    MaskAntialiasMode=AntialiasMode.PerPrimitive,
-                    
-                };
-               HostDC.PushLayer(ref lp, maskLayer);
-                using (Image PrepairedImage = Output(HostDC))
-                      HostDC.DrawImage(mask, new RawVector2(Position.X, Position.Y), null, SharpDX.Direct2D1.InterpolationMode.Linear, CompositeMode.SourceOver);
-                    
-              HostDC.PopLayer();
+                    var rp = new SharpDX.Direct2D1.RadialGradientBrushProperties
+                    {
+                        GradientOriginOffset = new RawVector2(0, 0),
+                        Center = i.Point,
+                        RadiusX = i.RadiusX,
+                        RadiusY = i.RadiusY
+                    };
+                    var gp = new SharpDX.Direct2D1.GradientStopCollection(
+                        HostDC,
+                        new SharpDX.Direct2D1.GradientStop[]
+                        {
+                            new SharpDX.Direct2D1.GradientStop
+                            { Color = new RawColor4(1, 1, 1, 1), Position = 0f },
+                            new SharpDX.Direct2D1.GradientStop
+                            { Color = new RawColor4(1, 1, 1, 0f), Position = 1f }
+                        });
+
+                    using (RadialGradientBrush b = new RadialGradientBrush(HostDC, rp, gp))
+                        HostDC.FillEllipse(i, b);
+
+                }
+                HostDC.EndDraw();
+
+                HostDC.Target = old_target;
+                HostDC.BeginDraw();
+
+                if (old_target as D2DBitmap == null)
+                    old_target.Dispose();
+
+                mask.CopyFromBitmap(loadBp);
+
+                using (BitmapBrush br = new BitmapBrush(HostDC, mask))
+                {
+
+                    LayerParameters lp = new LayerParameters()
+                    {
+                        Opacity = 1f,
+                        ContentBounds = new RawRectangleF(0, 0, HostDC.Size.Width, HostDC.Size.Height),
+                        LayerOptions = LayerOptions.None,
+                        MaskAntialiasMode = AntialiasMode.PerPrimitive,
+                        OpacityBrush = br
+                    };
+                    HostDC.PushLayer(ref lp, m_layer);
+                    using (Image PrepairedImage = Output(HostDC))
+                        HostDC.DrawImage(PrepairedImage, new RawVector2(Position.X, Position.Y), null, SharpDX.Direct2D1.InterpolationMode.Linear, CompositeMode.SourceOver);
+
+                    HostDC.PopLayer();
+                }
             }
 
         }
     }
     public partial class MainWindow : Window
     {
+        int uo = 0;
+        List<Key> DownedKeys = new List<Key>();
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if (DownedKeys.Contains(e.Key)) return;
+           // base.OnKeyDown(e);
+            uo++;
+            DownedKeys.Add(e.Key);
+        }
+        protected override void OnKeyUp(KeyEventArgs e)
+        {
+           // base.OnKeyUp(e);
+            DownedKeys.Remove(e.Key);
+        }
         static int update_time = 0;
         static Key GetKey(char c)
         {
@@ -334,7 +363,7 @@ namespace Shinengine
             {
                 try
                 {
-                    time_set.text = c.ToString() + ":" + b.ToString() + "  FPS:" + DX.FrameRate.ToString() + "UT:" + update_time.ToString(); ;
+                    time_set.text = c.ToString() + ":" + b.ToString() + "  FPS:" + DX.FrameRate.ToString() + "  POS:" + OpearArea.CursorPos.ToString()+"  TY:"+uo.ToString();
 
                     frame_start:
                     if (rs.Count == 0)
@@ -912,7 +941,7 @@ namespace Shinengine
                 s.Clear(new RawColor4(1, 1, 1, 0));
 
                 var wfactory = new SharpDX.DirectWrite.Factory();
-                var wformat = new SharpDX.DirectWrite.TextFormat(wfactory, "黑体", 16);
+                var wformat = new SharpDX.DirectWrite.TextFormat(wfactory, "黑体", 32);
                 wformat.ParagraphAlignment = SharpDX.DirectWrite.ParagraphAlignment.Center;
                 wformat.TextAlignment = SharpDX.DirectWrite.TextAlignment.Center;
                 if (frame > 30)
@@ -924,7 +953,7 @@ namespace Shinengine
                         if (!clicked)
                         {
                             s.FillEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(69, 69), 8, 8), c);
-                            s.DrawText(info, wformat, new RawRectangleF(61, 61, 77, 77), b);
+                            s.DrawText(info, wformat, new RawRectangleF(53, 53, 85, 85), b);
                         }
                     }
                 }
@@ -1055,7 +1084,7 @@ namespace Shinengine
                 s.BeginDraw();
                 s.Clear(new RawColor4(1, 1, 1, 0));
                 var wfactory = new SharpDX.DirectWrite.Factory();
-                var wformat = new SharpDX.DirectWrite.TextFormat(wfactory, "幼圆", 20);
+                var wformat = new SharpDX.DirectWrite.TextFormat(wfactory, "幼圆", 32);
                 wformat.ParagraphAlignment = SharpDX.DirectWrite.ParagraphAlignment.Center;
                 wformat.TextAlignment = SharpDX.DirectWrite.TextAlignment.Center;
                 if (frame > 30)
@@ -1068,7 +1097,7 @@ namespace Shinengine
                         {
                             s.FillEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(80, 80), 10, 10), c);
                             //  s.FillRectangle(new RawRectangleF(70, 70, 90, 90),b);
-                            s.DrawText(info, wformat, new RawRectangleF(70, 70, 90, 90), b);
+                            s.DrawText(info, wformat, new RawRectangleF(62, 62, 98, 98), b);
                         }
                     }
                 }

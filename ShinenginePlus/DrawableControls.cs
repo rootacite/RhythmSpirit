@@ -63,6 +63,7 @@ namespace ShinenginePlus.DrawableControls
         WicRenderTarget View = null;
         public DrawingImage(Size size)
         {
+            pw.Set();
             PixelSize = size;
             buffer =
                new WICBitmap(
@@ -82,14 +83,16 @@ namespace ShinenginePlus.DrawableControls
 
             load_buffer = new WICBitmap(iFactory, buffer, BitmapCreateCacheOption.CacheOnLoad);
         }
-
+        ManualResetEvent pw = new ManualResetEvent(false);
         public void Update()
         {
+            pw.Reset();
             Proc?.Invoke(View);
             var old_proc = load_buffer;
             load_buffer = new WICBitmap(iFactory, buffer, BitmapCreateCacheOption.CacheOnLoad);
             old_proc?.Dispose();
             Updated = true;
+            pw.Set();
         }
         public delegate void DrawProc(WicRenderTarget view);
         public event DrawProc Proc;
@@ -97,6 +100,7 @@ namespace ShinenginePlus.DrawableControls
         {
             get
             {
+                pw.WaitOne();
                 Updated = false;
                 if (load_buffer?.IsDisposed == false)
                     return new WICBitmap(iFactory, load_buffer, BitmapCreateCacheOption.CacheOnLoad);
