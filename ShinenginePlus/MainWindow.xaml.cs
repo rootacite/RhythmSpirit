@@ -164,6 +164,7 @@ namespace Shinengine
         }
         public IntPtr WindowHandle = (IntPtr)0;
         public BackGroundLayer BackGround = null;
+        WICBitmap im_bk = null;
         public Direct2DWindow DX = null;
         GroupLayer TitleBar;
         GroupLayer OpearArea;
