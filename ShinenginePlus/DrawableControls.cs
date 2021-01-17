@@ -38,6 +38,8 @@ using SolidColorBrush = SharpDX.Direct2D1.SolidColorBrush;
 using System.Windows.Input;
 using System.Numerics;
 using Image = SharpDX.Direct2D1.Image;
+using SharpDX.DirectWrite;
+using TextAlignment = SharpDX.DirectWrite.TextAlignment;
 
 namespace ShinenginePlus.DrawableControls
 {
@@ -193,6 +195,38 @@ namespace ShinenginePlus.DrawableControls
     /// <summary>
     /// Console style text, Complete
     /// </summary>
+
+
+    sealed public class ProcessBar : RenderableObject, IDisposable
+    {
+        public double Process { get; set; } = 0.0d;
+        public Point Position { get; set; }
+        public int PixelLong { get; set; } = 1280;
+
+        BitmapBrush br = null;
+        public ProcessBar(DeviceContext DC) : base(DC)
+        {
+            using (WICBitmap sc=Direct2DHelper.LoadBitmap("assets\\process.bmp"))
+            using (D2DBitmap sc_cv = D2DBitmap.FromWicBitmap(HostDC, sc))
+            {
+                br = new BitmapBrush(HostDC, sc_cv);
+            }
+            br.ExtendModeX = ExtendMode.Mirror;
+        }
+        public override void Render()
+        {
+
+            HostDC.DrawLine(new RawVector2(Position.X, Position.Y - 1.5f), new RawVector2(Position.X + PixelLong, Position.Y -1.5f), br, 3);
+            using (SolidColorBrush b = new SolidColorBrush(HostDC, new RawColor4(0.85f, 0.85f, 0.85f, 1)))
+                HostDC.FillEllipse(new Ellipse(new RawVector2((float)(Position.X + PixelLong * Process), Position.Y-2f), 4, 4), b);
+        }
+
+        public void Dispose()
+        {
+            br.Dispose();
+        }
+    }
+
     sealed public class DrawableText : RenderableObject, IDisposable
     {
         /// <summary>
@@ -213,12 +247,49 @@ namespace ShinenginePlus.DrawableControls
         public string text = "";
         SharpDX.DirectWrite.Factory wfactory = null;
         SharpDX.DirectWrite.TextFormat wformat = null;
+
+        public ParagraphAlignment ParagraphAlignment 
+        {
+            get
+            {
+                return wformat.ParagraphAlignment;
+            }
+            set
+            {
+                wformat.ParagraphAlignment = value;
+            }
+        }
+
+        public TextAlignment TextAlignment
+        {
+            get
+            {
+                return wformat.TextAlignment;
+            }
+            set
+            {
+                wformat.TextAlignment = value;
+            }
+        }
+
+        public ReadingDirection ReadingDirection
+        {
+            get
+            {
+                return wformat.ReadingDirection;
+            }
+            set
+            {
+                wformat.ReadingDirection = value;
+            }
+        }
+
         public DrawableText(string t, string name, float size , DeviceContext DC):base(DC)
         {
             text += t;
             wfactory = new SharpDX.DirectWrite.Factory();
             wformat = new SharpDX.DirectWrite.TextFormat(wfactory, name, size);
-
+            
             this.AddUpdateProcess(() =>
             {
                 drawtime += 1;
@@ -249,11 +320,8 @@ namespace ShinenginePlus.DrawableControls
         } = new RawColor4(1, 1, 1, 1);
         public override void Render()
         {
-            if (drawtime < 30)
-                using (SolidColorBrush brush = new SharpDX.Direct2D1.SolidColorBrush(HostDC, Color))
-                    HostDC.DrawText(this.text + "_", wformat, Range, brush);
-            else using (SolidColorBrush brush = new SharpDX.Direct2D1.SolidColorBrush(HostDC, Color))
-                    HostDC.DrawText(this.text, wformat, Range, brush);
+            using (SolidColorBrush brush = new SharpDX.Direct2D1.SolidColorBrush(HostDC, Color))
+                HostDC.DrawText(this.text, wformat, Range, brush);
         }
 
 

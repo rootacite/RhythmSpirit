@@ -33,6 +33,8 @@ using System.Xml.Linq;
 using System.Windows.Threading;
 using ImageSource = ShinenginePlus.DrawableControls.ImageSource;
 using Image = SharpDX.Direct2D1.Image;
+using SharpDX.DirectWrite;
+using TextAlignment = SharpDX.DirectWrite.TextAlignment;
 
 namespace Shinengine
 {
@@ -133,17 +135,27 @@ namespace Shinengine
     {
         int uo = 0;
         List<Key> DownedKeys = new List<Key>();
+
         protected override void OnKeyDown(KeyEventArgs e)
         {
-            if (DownedKeys.Contains(e.Key)) return;
-           // base.OnKeyDown(e);
+            if (DownedKeys.Contains(e.Key)) 
+                e.Handled = true;
+            else
+                DownedKeys.Add(e.Key);
+            base.OnKeyDown(e);
             uo++;
-            DownedKeys.Add(e.Key);
         }
         protected override void OnKeyUp(KeyEventArgs e)
         {
-           // base.OnKeyUp(e);
-            DownedKeys.Remove(e.Key);
+            base.OnKeyUp(e);
+            var bs = DownedKeys.ToArray();
+            for (int i = 0; i < bs.Length; i++)
+            {
+                if (bs[i] == e.Key)
+                {
+                    DownedKeys.RemoveAt(i);
+                }
+            }
         }
         static int update_time = 0;
         static Key GetKey(char c)
@@ -164,11 +176,16 @@ namespace Shinengine
         }
         public IntPtr WindowHandle = (IntPtr)0;
         public BackGroundLayer BackGround = null;
-        WICBitmap im_bk = null;
         public Direct2DWindow DX = null;
         GroupLayer TitleBar;
         GroupLayer OpearArea;
         DrawableText time_set;
+
+        DrawableText title_set;
+
+        ProcessBar PB;
+
+        static public DrawableText mark;
         public DrawResultW DrawProc(DeviceContext dc)
         {
             try
@@ -194,7 +211,11 @@ namespace Shinengine
             pv.Set();
             WindowHandle = new WindowInteropHelper(this).Handle;
 
-            
+            this.KeyDown += (e, v) => 
+            {
+                if (v.Handled) return;
+                this.Title = new Random().Next(100000, 2000000).ToString(); ;
+            };
               
 
             DX = new Direct2DWindow(new System.Drawing.Size((int)this.ActualWidth, (int)this.ActualHeight), WindowHandle) { AskedFrames=60};
@@ -249,7 +270,7 @@ namespace Shinengine
             bk1.Size = OpearArea.Size;
             bk1.PushTo(OpearArea);
 
-            TitleBar = new GroupLayer(BackGround, new SharpDX.Size2(1280, 30), DX.DC);
+            TitleBar = new GroupLayer(BackGround, new SharpDX.Size2(1280, 33), DX.DC);
             TitleBar.OutPutRange = new RawRectangleF(0, 0, 1280, 30);
             TitleBar.Color = new SharpDX.Mathematics.Interop.RawColor4(1, 1, 1, 0.35f);
 
@@ -257,6 +278,29 @@ namespace Shinengine
             time_set = new DrawableText("Hello World", "黑体",22, DX.DC);
             time_set.Color = new RawColor4(1, 0, 0, 1);
             time_set.PushTo(TitleBar);
+
+            title_set = new DrawableText("", "幼圆", 22, DX.DC);
+            title_set.Color = new RawColor4(1, 0f, 1,1);
+            title_set.Range = new RawRectangleF(0, 0, 1280, 30);
+            title_set.ParagraphAlignment = ParagraphAlignment.Center;
+            title_set.TextAlignment = TextAlignment.Center;
+
+
+            title_set.PushTo(TitleBar);
+
+            mark = new DrawableText("", "幼圆", 22, DX.DC);
+            mark.Color = new RawColor4(0, 0f, 1, 1);
+            mark.Range = new RawRectangleF(0, 0, 1250, 30);
+            mark.ParagraphAlignment = ParagraphAlignment.Near;
+            mark.TextAlignment = TextAlignment.Trailing;
+
+            mark.PushTo(TitleBar);
+
+            PB = new ProcessBar(DX.DC);
+            PB.Position = new System.Drawing.Point(0, 30);
+            PB.PixelLong = 1280;
+            PB.Process = 0f;
+            PB.PushTo(TitleBar);
 
             OpearArea.PushTo(BackGround);
             TitleBar.PushTo(BackGround);
@@ -284,6 +328,8 @@ namespace Shinengine
             sb = new RhythmTimer() {};
 
             img.ReLoad(bk);
+            title_set.text = name_pah[name_pah.Length - 1];
+            mark.text = "Mark:0";
             void KP(int x, int y, Key key, string info,double speed = 1)
             {
                 speed = 60d / sb.BPM;
@@ -430,15 +476,17 @@ namespace Shinengine
             sb.Start();
             TitleBar.Top();
             double time_save = 0;
+            double time_max = 0;
             new Thread(() =>
             {
-            pv.Reset();
-            AudioFramly.waveInit(WindowHandle, music_player.Out_channels, music_player.Out_sample_rate, music_player.Bit_per_sample, music_player.Out_buffer_size);
-            foreach (var i in music_player.abits)
-            {
-                if (!ask_stop)
+                pv.Reset();
+                AudioFramly.waveInit(WindowHandle, music_player.Out_channels, music_player.Out_sample_rate, music_player.Bit_per_sample, music_player.Out_buffer_size);
+                time_max = (music_player.abits[music_player.abits.Count - 1]?.time_base).Value;
+                foreach (var i in music_player.abits)
                 {
-                    unsafe
+                    if (!ask_stop)
+                    {
+                        unsafe
                         {
                             try
                             {
@@ -450,19 +498,21 @@ namespace Shinengine
                             {
                                 MessageBox.Show(e.ToString());
                             }
-                           
+
                         }
                     }
                     Marshal.FreeHGlobal((i?.data).Value);
                 }
                 AudioFramly.waveClose();
                 pv.Set();
-            }) { IsBackground=true}.Start(); 
+            })
+            { IsBackground = true }.Start();
             new Thread(() =>
             {
                 while (!ask_stop)
                 {
                     sb.Accuracy(time_save);
+                    PB.Process = time_save / time_max;
                     Thread.Sleep(100);
                 }
             })
@@ -490,8 +540,15 @@ namespace Shinengine
         public double Time;
         public RawRectangleF Rect;
     }
+    public enum RhythmType
+    {
+        RT_4_4=16,
+        RT_4_3=12,
+        RT_4_2=8
+    }
     public class RhythmTimer
     {
+        public RhythmType RhythmType { get; set; } = RhythmType.RT_4_4;
         ManualResetEvent pn = new ManualResetEvent(false);
         bool Stopped = false;
         int wait_beat = 0;
@@ -530,11 +587,11 @@ namespace Shinengine
             {
                 pn.WaitOne();
                 if (wait_beat-- > 0) Thread.Sleep((int)Timerise);
-                SixteenthBeats?.DynamicInvoke(new object[2] { Timebase / 16, Timebase % 16 });
-                if (Timebase % 2 == 0) EighthBeats?.DynamicInvoke(new object[2] { Timebase / 16, Timebase % 16 });
-                if (Timebase % 4 == 0) QuarterBeats?.DynamicInvoke(new object[2] { Timebase / 16, Timebase % 16 });
-                if (Timebase % 8 == 0) HalfBeats?.DynamicInvoke(new object[2] { Timebase / 16, Timebase % 16 });
-                if (Timebase % 16 == 0) Beats?.DynamicInvoke(new object[2] { Timebase / 16, Timebase % 16 });
+                SixteenthBeats?.DynamicInvoke(new object[2] { Timebase / (int)RhythmType, Timebase % (int)RhythmType });
+                if (Timebase % 2 == 0) EighthBeats?.DynamicInvoke(new object[2] { Timebase / (int)RhythmType, Timebase % (int)RhythmType });
+                if (Timebase % 4 == 0) QuarterBeats?.DynamicInvoke(new object[2] { Timebase / (int)RhythmType, Timebase % (int)RhythmType });
+                if (Timebase % 8 == 0) HalfBeats?.DynamicInvoke(new object[2] { Timebase / (int)RhythmType, Timebase % (int)RhythmType });
+                if (Timebase % 16 == 0) Beats?.DynamicInvoke(new object[2] { Timebase / (int)RhythmType, Timebase % (int)RhythmType });
                 if (skip_beat == 0) Thread.Sleep((int)Timerise);
                 else { skip_beat--; }
                 Timebase++;
@@ -577,6 +634,23 @@ namespace Shinengine
             else if (info == 1) img = new BitmapImage("assets\\great.png");
             else if (info == 2) img = new BitmapImage("assets\\bad.png");
             else img = new BitmapImage("assets\\miss.png");
+
+            int mark_n = 0;
+            try
+            {
+                mark_n = Convert.ToInt32(MainWindow.mark.text.Split(':')[1]);
+            } catch (Exception e)
+            {
+                mark_n = 0;
+            }
+            if (info == 0)
+                mark_n += 20;
+            else if (info == 1) mark_n += 10;
+            else if (info == 2) mark_n += 5;
+            else mark_n -= 5;
+
+            MainWindow.mark.text = "Mark:" + mark_n.ToString();
+
             pos.X -= img.PixelSize.Width / 4;
             pos.Y -= img.PixelSize.Height / 4;
             ctl = new RenderableImage(img, DC);
