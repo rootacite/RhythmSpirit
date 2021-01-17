@@ -211,11 +211,6 @@ namespace Shinengine
             pv.Set();
             WindowHandle = new WindowInteropHelper(this).Handle;
 
-            this.KeyDown += (e, v) => 
-            {
-                if (v.Handled) return;
-                this.Title = new Random().Next(100000, 2000000).ToString(); ;
-            };
               
 
             DX = new Direct2DWindow(new System.Drawing.Size((int)this.ActualWidth, (int)this.ActualHeight), WindowHandle) { AskedFrames=60};
@@ -504,6 +499,8 @@ namespace Shinengine
                     Marshal.FreeHGlobal((i?.data).Value);
                 }
                 AudioFramly.waveClose();
+                ask_stop = true;
+                sb?.Stop();
                 pv.Set();
             })
             { IsBackground = true }.Start();
@@ -639,7 +636,7 @@ namespace Shinengine
             try
             {
                 mark_n = Convert.ToInt32(MainWindow.mark.text.Split(':')[1]);
-            } catch (Exception e)
+            } catch (Exception)
             {
                 mark_n = 0;
             }
@@ -1279,7 +1276,7 @@ namespace Shinengine
         }
         private void KD(object s, KeyEventArgs t)
         {
-
+            
             if (t.Key != key) return;
             if (downed || t.Handled || frame == 0) return;
             if (frame > 89)
