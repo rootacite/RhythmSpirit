@@ -130,6 +130,8 @@ namespace RhythmMaker
 
             BackGround.AddDirtyRect(new Int32Rect(0, 0, 1280, 720));
             BackGround.Unlock();
+
+           
             Rt = new RhythmTimer();
             Rt.QuarterBeats += (b, o) =>
             {

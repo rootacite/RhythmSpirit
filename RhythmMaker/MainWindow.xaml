@@ -5,9 +5,9 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:RhythmMaker"
         mc:Ignorable="d"
-        Drop="Window_Drop"  Title="MainWindow" Height="720" Width="1280" MouseMove="Window_MouseMove" Closed="Window_Closed" AllowDrop="True" ResizeMode="NoResize" KeyUp="Window_KeyUp">
+        Drop="Window_Drop" MouseMove="Image_MouseMove"  Title="MainWindow" Height="720" Width="1280" Closed="Window_Closed" MouseDown="BK_MouseDown"  AllowDrop="True" ResizeMode="NoResize" KeyUp="Window_KeyUp">
     <Grid>
-        <Image x:Name="BK" HorizontalAlignment="Left" Height="1440" Margin="0,0,0,0" VerticalAlignment="Top" Width="2560" MouseMove="Image_MouseMove" MouseDown="BK_MouseDown" AllowDrop="True"/>
+        <Image x:Name="BK" HorizontalAlignment="Left" Height="1440" Margin="0,0,0,0" VerticalAlignment="Top" Width="2560"  AllowDrop="True"/>
 
         <TextBlock x:Name="Beat" HorizontalAlignment="Left" Height="30" Text="XX:XX" TextWrapping="Wrap" VerticalAlignment="Top" Width="165" Margin="0,0,0,0" Foreground="Red" FontSize="22"/>
         <Image x:Name="Inet" HorizontalAlignment="Left" Height="120" Margin="250,185,0,0" VerticalAlignment="Top" Width="120" Source="/cs.png" Stretch="Fill"/>
