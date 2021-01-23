@@ -399,6 +399,12 @@ namespace Shinengine
 
                     rs.Add(new RhyStep() { Type = typeof(KeyboardLongPoint), Position = new Point(x, y), Base = b, Offset = o, Time = t, Key = GetKey(key_c), Info = key_c.ToString() });
                 }
+
+                if (i.Name == "FL")
+                {
+
+                    rs.Add(new RhyStep() { Type = typeof(RippleEffect), Position = new Point(x, y), Base = b, Offset = o });
+                }
             }
 
             sb.QuarterBeats += (c, b) =>
@@ -422,9 +428,10 @@ namespace Shinengine
                             KL((int)rs[0].Position.X, (int)rs[0].Position.Y, rs[0].Key, rs[0].Info, rs[0].Time);
                         if (rs[0].Type == typeof(RippleEffect))
                         {
+                            RhyStep mc = rs[0];
                             new Thread(()=> {
                                 Thread.Sleep((int)((60d / sb.BPM) * 1000d));
-                                new RippleEffect(30, 400, new System.Drawing.Point((int)rs[0].Position.X, (int)rs[0].Position.Y), DX.DC).PushTo(BackGround);
+                                new RippleEffect(30, 400, new System.Drawing.Point((int)mc.Position.X, (int)mc.Position.Y), DX.DC).PushTo(BackGround);
                             }).Start();
                         }
                         if (rs[0].Type == typeof(Point))

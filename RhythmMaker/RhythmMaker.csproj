@@ -22,7 +22,7 @@
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'">
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <OutputPath>C:\Users\YC\Desktop\RhythmSpirit\ShinenginePlus\bin\x86\Debug\net5.0-windows\</OutputPath>
+    <OutputPath>bin\x86\Debug\</OutputPath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -40,9 +40,5 @@
     <Resource Include="cs.png" />
     <Resource Include="exam_net.png" />
   </ItemGroup>
-
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="copy C:\Users\YC\Desktop\RhythmSpirit\ShinenginePlus\bin\x86\Debug\net5.0-windows\netcoreapp3.1\*.* C:\Users\YC\Desktop\RhythmSpirit\ShinenginePlus\bin\x86\Debug\net5.0-windows" />
-  </Target>
 
 </Project>
