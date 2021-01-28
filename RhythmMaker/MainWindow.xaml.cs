@@ -64,6 +64,33 @@ namespace RhythmMaker
                 trail.Start();
             };
 
+            this.KeyDown += (e, v) => {
+                if (v.Key == Key.F11)
+                {
+                    if (Offset != 0)
+                    {
+                        Offset -= 4;
+                    }
+                    else
+                    {
+                        Base -= 1;
+                        Offset = 12;
+                    }
+                }
+                else
+if (v.Key == Key.F1)
+                {
+                    if (Offset != 12)
+                    {
+                        Offset += 4;
+                    }
+                    else
+                    {
+                        Base += 1;
+                        Offset = 0;
+                    }
+                }
+            };
         }
 
         private void Window_MouseMove(object sender, MouseEventArgs e)
@@ -138,64 +165,15 @@ namespace RhythmMaker
             BackGround.Unlock();
 
            
-            Rt = new RhythmTimer();
-            Rt.QuarterBeats += (b, o) =>
-            {
-                Base = b;
-                Offset = o;
-            };
-
-            foreach (XElement i in Elements)
-            {
-                if (i.Name == "head")
-                {
-                    Rt.BPM = Convert.ToInt32(i.Attribute("BPM").Value.ToString(), 10);
-                    break;
-                }
-            }
             var Handle = new WindowInteropHelper(this).Handle;
-            new Thread(() =>
-            {
-                AudioFramly music_player = new AudioFramly(music);
-                music_player.Decode();
-                AudioFramly.waveInit(Handle, music_player.Out_channels, music_player.Out_sample_rate, music_player.Bit_per_sample, music_player.Out_buffer_size);
-                Rt.Start();
-                foreach (var i in music_player.abits)
-                {
-                    if (!ask_stop)
-                    {
-                        Rt.pn.WaitOne();
-                        unsafe
-                        {
-                            try
-                            {
-                                Rt.Accuracy((i?.time_base).Value);
-                                AudioFramly.waveWrite((byte*)i?.data, music_player.Out_buffer_size);
-                            }
-                            catch (Exception e)
-                            {
-                                MessageBox.Show(e.ToString());
-                            }
-
-                        }
-                    }
-                    Marshal.FreeHGlobal((i?.data).Value);
-                }
-                AudioFramly.waveClose();
-                Script = null;
-                Rt?.Stop();
-            })
-            { IsBackground = true }.Start();
+           
         }
 
         private void Window_KeyUp(object sender, KeyEventArgs e)
         {
-            if (Script == null) return;
-            if (e.Key == Key.F1)
-            {
-                Rt?.pn?.Set();
-            }
-            else
+            if (Script == null) return; 
+           
+            
 
             if (e.Key == Key.F2)
             {
