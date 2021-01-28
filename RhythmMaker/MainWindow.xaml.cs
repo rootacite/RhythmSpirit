@@ -21,7 +21,7 @@ using Rectangle = System.Drawing.Rectangle;
 
 using System.Xml.Linq;
 using System.Threading;
-using Shinengine.Media;
+using ShinenginePlus.Media;
 using ShinenginePlus;
 using System.Windows.Interop;
 using System.Runtime.InteropServices;
@@ -76,7 +76,8 @@ namespace RhythmMaker
             var handle = Kernel32.GetCurrentProcess();
             Kernel32.TerminateProcess(handle.DangerousGetHandle(), 0);
         }
-
+        int ral_x_pos = 0;
+        int ral_y_pos = 0;
         private void Image_MouseMove(object sender, MouseEventArgs e)
         {
             Inet.Margin = new Thickness(e.GetPosition(this).X - 60, e.GetPosition(this).Y - 60, 0, 0);
@@ -87,7 +88,11 @@ namespace RhythmMaker
 
                 BK.Margin = new Thickness(oldPos.X+vector.X,oldPos.Y+vector.Y,0,0);
             }
+            double x_rate = Mouse.GetPosition(BK).X / BK.Width;
+            double y_rate = Mouse.GetPosition(BK).Y / BK.Height;
 
+            ral_x_pos = (int)(x_rate * 2560d);
+            ral_y_pos= (int)(y_rate * 1440d);
         }
 
         private void BK_MouseDown(object sender, MouseButtonEventArgs e)
@@ -217,10 +222,12 @@ namespace RhythmMaker
                     return;
                 }
 
+                double showed_width = 2560d * (1280 / BK.Width);
+                double showed_height = 1440d * (720 / BK.Height);
 
                 var new_ml = new XElement("MV",
                         new XAttribute("Time", Base.ToString() + ":" + Offset.ToString()),
-                        new XAttribute("Rect", (-BK.Margin.Left).ToString() + ":" + (-BK.Margin.Top).ToString() + ":" + (-BK.Margin.Left + BK.Width).ToString() + ":" + (-BK.Margin.Top + BK.Height).ToString()),
+                        new XAttribute("Rect", ((int)(-BK.Margin.Left)).ToString() + ":" + ((int)(-BK.Margin.Top)).ToString() + ":" + ((int)(-BK.Margin.Left + showed_width)).ToString() + ":" + ((int)(-BK.Margin.Top + showed_height)).ToString()),
                         new XAttribute("Beat", Convert.ToDouble(input.BOX.Text).ToString())
                         );
 
@@ -230,7 +237,7 @@ namespace RhythmMaker
             if (e.Key == Key.W)
             {
 
-                var pos_m = Mouse.GetPosition(BK);
+                var pos_m = new Point(ral_x_pos,ral_y_pos);
                 pos_m.X /= 2d;
                 pos_m.Y /= 2d;
                 BackGround.Lock();
@@ -256,7 +263,7 @@ namespace RhythmMaker
 
                     var new_ml = new XElement("KL",
                         new XAttribute("Time", Base.ToString() + ":" + Offset.ToString()),
-                        new XAttribute("Pos", Mouse.GetPosition(BK).X + ":" + Mouse.GetPosition(BK).Y),
+                        new XAttribute("Pos", (int)ral_x_pos + ":" + (int)ral_y_pos),
                         new XAttribute("Key", "W"),
                         new XAttribute("Beat", Convert.ToDouble(input.BOX.Text).ToString())
                         );
@@ -267,7 +274,7 @@ namespace RhythmMaker
                 {
                     var new_ml = new XElement("KS",
                        new XAttribute("Time", Base.ToString() + ":" + Offset.ToString()),
-                       new XAttribute("Pos", Mouse.GetPosition(BK).X + ":" + Mouse.GetPosition(BK).Y),
+                       new XAttribute("Pos", (int)ral_x_pos + ":" + (int)ral_y_pos),
                        new XAttribute("Key", "W")
                        );
                     Script.Root.Add(new_ml);
@@ -281,7 +288,7 @@ namespace RhythmMaker
             else
             if (e.Key == Key.A)
             {
-                var pos_m = Mouse.GetPosition(BK);
+                var pos_m = new Point(ral_x_pos,ral_y_pos);
                 pos_m.X /= 2d;
                 pos_m.Y /= 2d;
                 BackGround.Lock();
@@ -307,7 +314,7 @@ namespace RhythmMaker
 
                     var new_ml = new XElement("KL",
                         new XAttribute("Time", Base.ToString() + ":" + Offset.ToString()),
-                        new XAttribute("Pos", Mouse.GetPosition(BK).X + ":" + Mouse.GetPosition(BK).Y),
+                        new XAttribute("Pos", (int)ral_x_pos + ":" + (int)ral_y_pos),
                         new XAttribute("Key", "A"),
                         new XAttribute("Beat", Convert.ToDouble(input.BOX.Text).ToString())
                         );
@@ -318,7 +325,7 @@ namespace RhythmMaker
                 {
                     var new_ml = new XElement("KS",
                        new XAttribute("Time", Base.ToString() + ":" + Offset.ToString()),
-                       new XAttribute("Pos", Mouse.GetPosition(BK).X + ":" + Mouse.GetPosition(BK).Y),
+                       new XAttribute("Pos", (int)ral_x_pos + ":" + (int)ral_y_pos),
                        new XAttribute("Key", "A")
                        );
                     Script.Root.Add(new_ml);
@@ -332,7 +339,7 @@ namespace RhythmMaker
             else
             if (e.Key == Key.S)
             {
-                var pos_m = Mouse.GetPosition(BK);
+                var pos_m = new Point(ral_x_pos,ral_y_pos);
                 pos_m.X /= 2d;
                 pos_m.Y /= 2d;
                 BackGround.Lock();
@@ -358,7 +365,7 @@ namespace RhythmMaker
 
                     var new_ml = new XElement("KL",
                         new XAttribute("Time", Base.ToString() + ":" + Offset.ToString()),
-                        new XAttribute("Pos", Mouse.GetPosition(BK).X + ":" + Mouse.GetPosition(BK).Y),
+                        new XAttribute("Pos", (int)ral_x_pos + ":" + (int)ral_y_pos),
                         new XAttribute("Key", "S"),
                         new XAttribute("Beat", Convert.ToDouble(input.BOX.Text).ToString())
                         );
@@ -369,7 +376,7 @@ namespace RhythmMaker
                 {
                     var new_ml = new XElement("KS",
                        new XAttribute("Time", Base.ToString() + ":" + Offset.ToString()),
-                       new XAttribute("Pos", Mouse.GetPosition(BK).X + ":" + Mouse.GetPosition(BK).Y),
+                       new XAttribute("Pos", (int)ral_x_pos + ":" + (int)ral_y_pos),
                        new XAttribute("Key", "S")
                        );
                     Script.Root.Add(new_ml);
@@ -383,7 +390,7 @@ namespace RhythmMaker
             else
             if (e.Key == Key.D)
             {
-                var pos_m = Mouse.GetPosition(BK);
+                var pos_m = new Point(ral_x_pos,ral_y_pos);
                 pos_m.X /= 2d;
                 pos_m.Y /= 2d;
                 BackGround.Lock();
@@ -409,7 +416,7 @@ namespace RhythmMaker
 
                     var new_ml = new XElement("KL",
                         new XAttribute("Time", Base.ToString() + ":" + Offset.ToString()),
-                        new XAttribute("Pos", Mouse.GetPosition(BK).X + ":" + Mouse.GetPosition(BK).Y),
+                        new XAttribute("Pos", (int)ral_x_pos + ":" + (int)ral_y_pos),
                         new XAttribute("Key", "D"),
                         new XAttribute("Beat", Convert.ToDouble(input.BOX.Text).ToString())
                         );
@@ -420,7 +427,7 @@ namespace RhythmMaker
                 {
                     var new_ml = new XElement("KS",
                        new XAttribute("Time", Base.ToString() + ":" + Offset.ToString()),
-                       new XAttribute("Pos", Mouse.GetPosition(BK).X + ":" + Mouse.GetPosition(BK).Y),
+                       new XAttribute("Pos", (int)ral_x_pos + ":" + (int)ral_y_pos),
                        new XAttribute("Key", "D")
                        );
                     Script.Root.Add(new_ml);
@@ -436,7 +443,7 @@ namespace RhythmMaker
             else
             if (e.Key == Key.F6)
             {
-                var pos_m = Mouse.GetPosition(BK);
+                var pos_m = new Point(ral_x_pos,ral_y_pos);
                 pos_m.X /= 2d;
                 pos_m.Y /= 2d;
                 BackGround.Lock();
@@ -448,7 +455,7 @@ namespace RhythmMaker
 
                 var new_ml = new XElement("FL",
                    new XAttribute("Time", Base.ToString() + ":" + Offset.ToString()),
-                   new XAttribute("Pos", Mouse.GetPosition(BK).X + ":" + Mouse.GetPosition(BK).Y)
+                   new XAttribute("Pos", (int)ral_x_pos + ":" + (int)ral_y_pos)
                    );
                 Script.Root.Add(new_ml);
 
@@ -503,6 +510,59 @@ namespace RhythmMaker
                 BK.Height -= BK.Height * 0.04d;
                 BK.Margin = old_margin;
             }
+        }
+
+        private void Window_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (Script == null) return;
+            if (e.ChangedButton != MouseButton.Left) return;
+
+            var pos_m = new Point(ral_x_pos,ral_y_pos);
+            pos_m.X /= 2d;
+            pos_m.Y /= 2d;
+            BackGround.Lock();
+
+            graphics.DrawEllipse(Pens.Blue, new Rectangle(new System.Drawing.Point((int)(pos_m.X - 40), (int)(pos_m.Y - 40)), new System.Drawing.Size(80, 80)));
+
+            BackGround.AddDirtyRect(new Int32Rect(0, 0, 1280, 720));
+            BackGround.Unlock();
+            if (Keyboard.IsKeyDown(Key.LeftShift))
+            {
+                Input input = new Input();
+                input.BOX.Text = "";
+                input.ShowDialog();
+
+                if (!input.status) return;
+
+                if (!IsNumberic(input.BOX.Text))
+                {
+                    MessageBox.Show("Error:Not a number!", "...", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+
+                var new_ml = new XElement("ML",
+                    new XAttribute("Time", Base.ToString() + ":" + Offset.ToString()),
+                    new XAttribute("Pos", (int)ral_x_pos + ":" + (int)ral_y_pos),
+                    new XAttribute("Beat", Convert.ToDouble(input.BOX.Text).ToString())
+                    );
+
+                Script.Root.Add(new_ml);
+            }
+            else
+            {
+                var new_ml = new XElement("MS",
+                   new XAttribute("Time", Base.ToString() + ":" + Offset.ToString()),
+                   new XAttribute("Pos", (int)ral_x_pos + ":" + (int)ral_y_pos)
+                   );
+                Script.Root.Add(new_ml);
+            }
+
+            if (Keyboard.IsKeyUp(Key.LeftCtrl))
+            {
+                Rt?.pn?.Set();
+            }
+
         }
     }
 

@@ -4,7 +4,7 @@ using System.Drawing;
 using System.Runtime.InteropServices;
 using FFmpeg.AutoGen;
 
-namespace Shinengine.Media
+namespace ShinenginePlus.Media
 {
     public sealed unsafe class VideoStreamDecoder : IDisposable
     {

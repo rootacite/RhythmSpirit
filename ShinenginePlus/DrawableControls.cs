@@ -88,6 +88,7 @@ namespace ShinenginePlus.DrawableControls
         ManualResetEvent pw = new ManualResetEvent(false);
         public void Update()
         {
+            pw.WaitOne();
             pw.Reset();
             Proc?.Invoke(View);
             var old_proc = load_buffer;
@@ -680,6 +681,8 @@ namespace ShinenginePlus.DrawableControls
             get
             {
                 if (dpd || !IsEnableMouse) return new Point(-1, -1);
+
+
                 double x_rate = real_cursorpos.X / _window.RenderSize.Width;
                 double y_rate = real_cursorpos.Y / _window.RenderSize.Height;
 
@@ -722,18 +725,28 @@ namespace ShinenginePlus.DrawableControls
             get
             {
                 if (_father == null || !IsEnableMouse) return new Point(-1, -1);
-                double x_ins = _father.CursorPos.X - OutPutRange.Left;
-                double y_ins = _father.CursorPos.Y - OutPutRange.Top;
 
-                if (x_ins > Size.Width || x_ins < 0 || y_ins > Size.Height || y_ins < 0) return new Point(-1, -1);
+                double mouse_x_rate = (double)_father.CursorPos.X / (double)_father.Size.Width;
+                double mouse_y_rate = (double)_father.CursorPos.Y / (double)_father.Size.Height;
 
-                double x_rate = x_ins / Size.Width;
-                double y_rate = y_ins / Size.Height;
+                double m_left_rate= (double)OutPutRange.Left / (double)_father.Size.Width;
+                double m_top_rate = (double)OutPutRange.Top / (double)_father.Size.Height;
 
-                double x_offset = x_rate * (Range.Right - Range.Left);
-                double y_offset = y_rate * (Range.Bottom - Range.Top);
+                double m_right_rate = (double)OutPutRange.Right / (double)_father.Size.Width;
+                double m_bottom_rate = (double)OutPutRange.Bottom / (double)_father.Size.Height;
 
-                return new Point((int)(Range.Left + x_offset), (int)(Range.Top + y_offset));
+                if (mouse_x_rate > m_right_rate || m_right_rate < m_left_rate || mouse_y_rate > m_bottom_rate || mouse_y_rate < m_top_rate) return new Point(-1, -1);
+
+                double currect_x_rate = (mouse_x_rate - m_left_rate) / (m_right_rate - m_left_rate);
+                double currect_y_rate = (mouse_y_rate - m_top_rate) / (m_bottom_rate - m_top_rate);
+
+                int offset_x = (int)(currect_x_rate * (double)(Range.Right - Range.Left));
+                int offset_y = (int)(currect_y_rate * (double)(Range.Bottom - Range.Top));
+
+
+
+
+                return new Point((int)(Range.Left + offset_x), (int)(Range.Top + offset_y));
             }
         }
         private Layer _father = null;

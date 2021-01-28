@@ -4,7 +4,7 @@ using System;
 
 using WICBitmap = SharpDX.WIC.Bitmap;
 using System.Collections.Generic;
-namespace Shinengine.Media
+namespace ShinenginePlus.Media
 {
     sealed public class VideoFramesManager : IDisposable
     {

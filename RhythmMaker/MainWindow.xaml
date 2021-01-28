@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:RhythmMaker"
         mc:Ignorable="d"
-        Title="F1-Skip F2-Revoke F3-Move F5-Save F6-Effect F12-Refrush" Drop="Window_Drop" MouseMove="Image_MouseMove" Height="720" Width="1280" Closed="Window_Closed" MouseDown="BK_MouseDown"  AllowDrop="True" ResizeMode="NoResize" KeyUp="Window_KeyUp" MouseWheel="Window_MouseWheel">
+        Title="F1-Skip F2-Revoke F3-Move F5-Save F6-Effect F12-Refrush" Drop="Window_Drop" MouseUp="Window_MouseUp" MouseMove="Image_MouseMove" Height="720" Width="1280" Closed="Window_Closed" MouseDown="BK_MouseDown"  AllowDrop="True" ResizeMode="NoResize" KeyUp="Window_KeyUp" MouseWheel="Window_MouseWheel">
     <Grid>
         <Image x:Name="BK" HorizontalAlignment="Left" Height="1440" Margin="0,0,0,0" VerticalAlignment="Top" Width="2560"  AllowDrop="True"/>
 
