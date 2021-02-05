@@ -9,7 +9,7 @@
     <Grid>
         <Image x:Name="BK" HorizontalAlignment="Left" Height="1440" Margin="0,0,0,0" VerticalAlignment="Top" Width="2560"  AllowDrop="True"/>
 
-        <TextBlock x:Name="Beat" HorizontalAlignment="Left" Height="30" Text="XX:XX" TextWrapping="Wrap" VerticalAlignment="Top" Width="165" Margin="0,0,0,0" Foreground="Red" FontSize="22"/>
+        <TextBlock x:Name="Beat" HorizontalAlignment="Left" Height="70" Text="XX:XX" TextWrapping="Wrap" VerticalAlignment="Top" Width="688" Margin="0,0,0,0" Foreground="Red" FontSize="22"/>
         <Image x:Name="Inet" HorizontalAlignment="Left" Height="120" Margin="250,185,0,0" VerticalAlignment="Top" Width="120" Source="/cs.png" Stretch="Fill"/>
 
     </Grid>

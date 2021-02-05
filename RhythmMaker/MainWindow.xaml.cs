@@ -49,12 +49,14 @@ namespace RhythmMaker
             {
                 if (Preview.StaticSelf != null)
                 {
-                    Preview_Entity.Left = this.Left+10;
+                    Preview_Entity.Left = this.Left + 10;
                     Preview_Entity.Top = this.Top + 720;
                 }
                 if (Script != null)
                     Preview_Entity.MS.Text = Script.ToString();
-                Beat.Text = Base.ToString() + ":" + Offset.ToString() + "   " + new System.Windows.Point((int)BK.Margin.Left, (int)BK.Margin.Top).ToString();
+                double showed_width = 2560d * (1280 / BK.Width);
+                double showed_height = 1440d * (720 / BK.Height);
+                Beat.Text = Base.ToString() + ":" + Offset.ToString() + "\n" + (-(int)BK.Margin.Left).ToString() + ":" + (-(int)BK.Margin.Top).ToString() + ":" + ((-(int)BK.Margin.Left) + (int)showed_width).ToString() + ":" + ((-(int)BK.Margin.Top) + (int)showed_height).ToString();
             };
 
             graphics = Graphics.FromImage(new Bitmap(1280, 720, BackGround.BackBufferStride, System.Drawing.Imaging.PixelFormat.Format32bppPArgb, BackGround.BackBuffer));
@@ -64,7 +66,8 @@ namespace RhythmMaker
                 trail.Start();
             };
 
-            this.KeyDown += (e, v) => {
+            this.KeyDown += (e, v) =>
+            {
                 if (v.Key == Key.F11)
                 {
                     if (Offset != 0)
@@ -80,15 +83,7 @@ namespace RhythmMaker
                 else
 if (v.Key == Key.F1)
                 {
-                    if (Offset != 12)
-                    {
-                        Offset += 4;
-                    }
-                    else
-                    {
-                        Base += 1;
-                        Offset = 0;
-                    }
+                    if (Offset != 12) { Offset += 4; } else { Base += 1; Offset = 0; }
                 }
             };
         }
@@ -171,11 +166,28 @@ if (v.Key == Key.F1)
 
         private void Window_KeyUp(object sender, KeyEventArgs e)
         {
-            if (Script == null) return; 
-           
-            
+            if (Script == null) return;
 
-            if (e.Key == Key.F2)
+            if (e.Key == Key.F8)
+            {
+                Input input = new Input();
+                input.BOX.Text = "";
+                input.ShowDialog();
+
+                if (!input.status) return;
+
+                var pms = input.BOX.Text.Split(':');
+
+                Rect rc = new Rect(new Point(Convert.ToDouble(pms[0]), Convert.ToDouble(pms[1])), new Point(Convert.ToDouble(pms[2]), Convert.ToDouble(pms[3])));
+
+                BK.Width = (2560d * 1280d) / rc.Width;
+                BK.Height = (1440d * 720d) / rc.Height;
+
+                BK.Margin = new Thickness(-rc.X, -rc.Y, 0, 0);
+            }
+            else
+
+           if (e.Key == Key.F2)
             {
                 if (((XElement)Script.Root.LastNode).Name != "head")
                     Script.Root.LastNode.Remove();
@@ -260,7 +272,7 @@ if (v.Key == Key.F1)
 
                 if (Keyboard.IsKeyUp(Key.LeftCtrl))
                 {
-                    Rt?.pn?.Set();
+                    if (Offset != 12) { Offset += 4; } else { Base += 1; Offset = 0; }
                 }
             }
             else
@@ -311,7 +323,7 @@ if (v.Key == Key.F1)
 
                 if (Keyboard.IsKeyUp(Key.LeftCtrl))
                 {
-                    Rt?.pn?.Set();
+                    if (Offset != 12) { Offset += 4; } else { Base += 1; Offset = 0; }
                 }
             }
             else
@@ -362,7 +374,7 @@ if (v.Key == Key.F1)
 
                 if (Keyboard.IsKeyUp(Key.LeftCtrl))
                 {
-                    Rt?.pn?.Set();
+                    if (Offset != 12) { Offset += 4; } else { Base += 1; Offset = 0; }
                 }
             }
             else
@@ -413,7 +425,7 @@ if (v.Key == Key.F1)
 
                 if (Keyboard.IsKeyUp(Key.LeftCtrl))
                 {
-                    Rt?.pn?.Set();
+                    if (Offset != 12) { Offset += 4; } else { Base += 1; Offset = 0; }
                 }
 
 
@@ -538,7 +550,7 @@ if (v.Key == Key.F1)
 
             if (Keyboard.IsKeyUp(Key.LeftCtrl))
             {
-                Rt?.pn?.Set();
+                if (Offset != 12) { Offset += 4; } else { Base += 1; Offset = 0; }
             }
 
         }
