@@ -39,6 +39,22 @@ using System.IO;
 
 namespace ShinenginePlus
 {
+    public static class DTExtension
+    {
+        static public bool isPaused = false;
+        public static void Change(this DrawableText Text, int Raise)
+        {
+            int n_combo = Convert.ToInt32(Text.text.Split('\n')[0]);
+
+            n_combo += Raise;
+
+            Text.text = n_combo.ToString() + "\n" + "Combo";
+
+            var old = Text.Color;
+            old.A = 1f;
+            Text.Color = old;
+        }
+    }
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
@@ -135,7 +151,6 @@ namespace ShinenginePlus
     }
     public partial class MainWindow : Window
     {
-        bool Wow3Fps = true;
 
         int uo = 0;
         List<Key> DownedKeys = new List<Key>();
@@ -180,15 +195,15 @@ namespace ShinenginePlus
         }
         public IntPtr WindowHandle = (IntPtr)0;
         public BackGroundLayer BackGround = null;
+
         public Direct2DWindow DX = null;
         GroupLayer TitleBar;
         GroupLayer OpearArea;
-        DrawableText time_set;
-
         DrawableText title_set;
+        InteractiveObject pause_button;
 
         ProcessBar PB;
-
+        static public DrawableText combo;
         static public DrawableText mark;
         public DrawResultW DrawProc(DeviceContext dc)
         {
@@ -228,56 +243,37 @@ namespace ShinenginePlus
                 Range = new RawRectangleF(0, 0, (float)this.ActualWidth, (float)this.ActualHeight)
             };
 
-            async void Proc_Update()
+             void Proc_Update()
             {
+
+                while (true)
                 {
-                    while (true)
+                    Stopwatch sw = new Stopwatch();
+                    sw.Start();
+                    try
                     {
-                        Stopwatch sw = new Stopwatch();
-                        sw.Start();
-                        try
-                        {
-                            BackGround.Update();
-                        }
-                        catch (Exception e)
-                        {
-                            MessageBox.Show(e.ToString());
-                        }
-                        if (Wow3Fps)
-                        {
-                            if ((img as VideoSource)?.FrameRate != null ? (int)((img as VideoSource)?.FrameRate) == 29 : false)
-                            {
-                                if ((img as VideoSource).Position - time_save > 0.1d)
-                                {
-                                    goto endDecode;
-                                }
-
-                                if ((img as VideoSource).Position - time_save < -0.1d)
-                                {
-                                    await (img as VideoSource).DecodeAsync();
-                                }
-                                
-                                (img as VideoSource).DecodeAsync();
-
-                            }
-                        }
-                        endDecode:
-                        Wow3Fps = !Wow3Fps;
-                        sw.Stop();
-
-
-                        decimal time = sw.ElapsedTicks / (decimal)Stopwatch.Frequency * 1000;
-                        decimal wait_time = 1000.0M / 60M - time;
-
-                        if (wait_time < 0)
-                        {
-                            wait_time = 0;
-                        }
-
-                        Thread.Sleep((int)wait_time);
+                        BackGround.Update();
+                    }
+                    catch (Exception e)
+                    {
+                        MessageBox.Show(e.ToString());
                     }
 
+                    sw.Stop();
+
+
+                    decimal time = sw.ElapsedTicks / (decimal)Stopwatch.Frequency * 1000;
+                    decimal wait_time = 1000.0M / 60M - time;
+
+                    if (wait_time < 0)
+                    {
+                        wait_time = 0;
+                    }
+
+                    Thread.Sleep((int)wait_time);
                 }
+
+
             }
             Thread updateTimer = new Thread(Proc_Update)
             { IsBackground = true };
@@ -299,16 +295,69 @@ namespace ShinenginePlus
             bk1.PushTo(OpearArea);
 
             TitleBar = new GroupLayer(BackGround, new SharpDX.Size2(1280, 33), DX.DC);
-            TitleBar.OutPutRange = new RawRectangleF(0, 0, 1280, 30);
-            TitleBar.Color = new SharpDX.Mathematics.Interop.RawColor4(1, 1, 1, 0.35f);
+            TitleBar.OutPutRange = new RawRectangleF(0, 0, 0, 30);
+            TitleBar.Range = new RawRectangleF(0, 0, 0, 33);
+            TitleBar.Color = new SharpDX.Mathematics.Interop.RawColor4(1, 1, 1, 0f);
 
-            
-            time_set = new DrawableText("Hello World", "黑体",22, DX.DC);
-            time_set.Color = new RawColor4(1, 0, 0, 1);
-            time_set.PushTo(TitleBar);
+            TitleBar.AddUpdateProcess(()=> 
+            {
+                var o_old = TitleBar.OutPutRange;
+                var r_old = TitleBar.Range;
+                var c_old = TitleBar.Color;
 
-            title_set = new DrawableText("", "幼圆", 22, DX.DC);
-            title_set.Color = new RawColor4(1, 0f, 1,1);
+                o_old.Right += 16;
+                r_old.Right += 16;
+                c_old.A += 0.00625f;
+
+                TitleBar.OutPutRange = o_old;
+                TitleBar.Range = r_old;
+                TitleBar.Color = c_old;
+                if (TitleBar.Range.Right == 1280)
+                    return false;
+                return true;
+            });
+
+            pause_button = new InteractiveObject(new BitmapImage("assets\\pause.png"), DX.DC);
+            pause_button.Size = new SharpDX.Size2(22,22);
+            pause_button.Position = new System.Drawing.Point(1230, 2);
+            pause_button.PushTo(TitleBar, this);
+            pause_button.MouseUp += (e, v) => 
+            {
+                OpearArea.Freezing = !OpearArea.Freezing;
+                if (OpearArea.Freezing) { 
+                    sb.Pause();
+                    
+                }
+                else { sb.Resume(); }
+            };
+            pause_button.MouseEnter += (e, b) =>
+            {
+                (e as InteractiveObject).AddUpdateProcess(()=> 
+                {
+                    if((e as InteractiveObject).isInArea&& (e as InteractiveObject).Opacity > 0.3f)
+                    {
+                        (e as InteractiveObject).Opacity -= 0.05f;
+                        return true;
+                    }
+                    return false;
+                });
+            };
+            pause_button.MouseLeft += (e, b) =>
+            {
+                (e as InteractiveObject).AddUpdateProcess(() =>
+                {
+                    if (!(e as InteractiveObject).isInArea && (e as InteractiveObject).Opacity < 1f)
+                    {
+                        (e as InteractiveObject).Opacity += 0.05f;
+                        return true;
+                    }
+                    return false;
+                });
+            };
+
+
+            title_set = new DrawableText("", "Arturito Slab", 22, DX.DC);
+            title_set.Color = new RawColor4(0.1f, 0.1f, 0.1f, 1);
             title_set.Range = new RawRectangleF(0, 0, 1280, 30);
             title_set.ParagraphAlignment = ParagraphAlignment.Center;
             title_set.TextAlignment = TextAlignment.Center;
@@ -316,13 +365,26 @@ namespace ShinenginePlus
 
             title_set.PushTo(TitleBar);
 
-            mark = new DrawableText("", "幼圆", 22, DX.DC);
-            mark.Color = new RawColor4(0, 0f, 1, 1);
-            mark.Range = new RawRectangleF(0, 0, 1250, 30);
-            mark.ParagraphAlignment = ParagraphAlignment.Near;
-            mark.TextAlignment = TextAlignment.Trailing;
+            mark = new DrawableText("", "Arturito Slab", 22, DX.DC);
+            mark.Color = new RawColor4(1f, 0.1f, 0.1f, 1);
+            mark.Range = new RawRectangleF(20, 0, 1250, 30);
 
             mark.PushTo(TitleBar);
+
+            combo = new DrawableText("0\nCombo", "Arturito Slab", 35, DX.DC);
+            combo.Color = new RawColor4(0.85f, 0.85f, 0.85f, 0);
+            combo.Range = new RawRectangleF(1050, 260, 1250, 360);
+            combo.ParagraphAlignment = ParagraphAlignment.Center;
+            combo.TextAlignment = TextAlignment.Center;
+            combo.AddUpdateProcess(()=> 
+            {
+                var old = combo.Color;
+                if (old.A > 0)
+                    old.A -= 0.02f;
+                combo.Color = old;
+                return true;
+            });
+
 
             PB = new ProcessBar(DX.DC);
             PB.Position = new System.Drawing.Point(0, 30);
@@ -332,7 +394,7 @@ namespace ShinenginePlus
 
             OpearArea.PushTo(BackGround);
             TitleBar.PushTo(BackGround);
-
+            combo.PushTo(BackGround);
             DX.Run();
             updateTimer.Start();
 
@@ -347,8 +409,12 @@ namespace ShinenginePlus
         ManualResetEvent pn = new ManualResetEvent(false);
         ManualResetEvent pv = new ManualResetEvent(false);
         bool ask_stop = false;
-        public void StartStoryBoard(string path)
+        async public void StartStoryBoard(string path)
         {
+            if (path[path.Length - 1] == '\\')
+            {
+                path = path.Substring(0, path.Length - 1);
+            }
             sb?.Stop();
             ask_stop = true;
             pv.WaitOne();
@@ -359,9 +425,9 @@ namespace ShinenginePlus
             string music = path + "\\" + name_pah[name_pah.Length - 1] + ".aac";
             string script = path + "\\" + name_pah[name_pah.Length - 1] + ".xml";
             string bkv = path + "\\" + name_pah[name_pah.Length - 1] + ".mpg";
-            sb = new RhythmTimer() {};
+            sb = new RhythmTimer() { };
 
-            if(File.Exists(bk))
+            if (File.Exists(bk))
                 (img as BitmapImage).ReLoad(bk);
             else
             {
@@ -370,20 +436,63 @@ namespace ShinenginePlus
 
                 (img as BitmapImage).Dispose();
                 img = imgv;
+                await imgv.DecodeAsync();
+
+                new Thread(async () =>
+                {
+                    while (!ask_stop)
+                    {
+                        while (OpearArea.Freezing) Thread.Sleep(1);
+                        Stopwatch sw = new Stopwatch();
+                        sw.Start();
+
+                        if ((img as VideoSource).Position - time_save > 0.1d)
+                        {
+                            goto endDecode;
+                        }
+
+                        if ((img as VideoSource).Position - time_save < -0.1d)
+                        {
+                            await (imgv as VideoSource).DecodeAsync();
+                        }
+
+                        await (imgv as VideoSource).DecodeAsync();
+                        endDecode:
+                        sw.Stop();
+
+
+                        decimal time = sw.ElapsedTicks / (decimal)Stopwatch.Frequency * 1000;
+                        decimal wait_time = 1000.0M / 30M - time;
+
+                        if (wait_time < 0)
+                        {
+                            wait_time = 0;
+                        }
+
+                        Thread.Sleep((int)wait_time);
+                    }
+                })
+                { IsBackground = true }.Start();
+
+
             }
+
+
             title_set.text = name_pah[name_pah.Length - 1];
-            mark.text = "Mark:0";
-            void KP(int x, int y, Key key, string info,double speed = 1)
+            mark.text = "0";
+
+            #region Keys
+            void KP(int x, int y, Key key, string info, double speed = 1)
             {
                 speed = 60d / sb.BPM;
-                new KeyboardSinglePoint(DX.DC,OpearArea, DX, new System.Drawing.Point(x, y), this, key, info, speed);
+                new KeyboardSinglePoint(DX.DC, OpearArea, DX, new System.Drawing.Point(x, y), this, key, info, speed);
             }
             void KL(int x, int y, Key key, string info, double beat, double speed = 1)
             {
-                speed= 60d / sb.BPM;
+                speed = 60d / sb.BPM;
                 new KeyboardLongPoint(DX.DC, OpearArea, DX, new System.Drawing.Point(x, y), this, 60d / sb.BPM * beat, key, info, speed);
             }
-            void PL(int x, int y,double beat, double speed = 1)
+            void PL(int x, int y, double beat, double speed = 1)
             {
                 speed = 60d / sb.BPM;
                 new MouseLongPoint(DX.DC, OpearArea, DX, new System.Drawing.Point(x, y), this, 60d / sb.BPM * beat, speed);
@@ -393,11 +502,11 @@ namespace ShinenginePlus
                 speed = 60d / sb.BPM;
                 new MouseSinglePoint(DX.DC, OpearArea, DX, new System.Drawing.Point(x, y), this, speed);
             }
-           
+            #endregion
             AudioFramly music_player = new AudioFramly(music);
             music_player.Decode();
 
-            XDocument script_obj = XDocument.Load(script) ;
+            XDocument script_obj = XDocument.Load(script);
             var des = script_obj.Root.Nodes();
             List<RhyStep> rs = new List<RhyStep>();
 
@@ -440,7 +549,7 @@ namespace ShinenginePlus
                 }
 
                 if (i.Name == "KL")
-                { 
+                {
 
                     double t = Convert.ToDouble(i.Attribute("Beat").Value.ToString());
                     char key_c = i.Attribute("Key").Value.ToString()[0];
@@ -461,15 +570,13 @@ namespace ShinenginePlus
                 {
                     if ((img as VideoSource)?.FrameRate != null ? (int)((img as VideoSource)?.FrameRate) == 29 : false)
                     {
-                        if(Math.Abs((img as VideoSource).Position - time_save) > 0.1d)
+                        if (Math.Abs((img as VideoSource).Position - time_save) > 0.1d)
                         {
                             // (img as VideoSource).Position = time_save;
-                            Debug.WriteLine( ((img as VideoSource).Position - time_save).ToString()   );
+                            Debug.WriteLine(((img as VideoSource).Position - time_save).ToString());
                         }
                     }
 
-
-                        time_set.text = c.ToString() + ":" + b.ToString() + "  FPS:" + DX.FrameRate.ToString() + "  POS:" + OpearArea.CursorPos.ToString()+"  TY:"+uo.ToString();
 
                     frame_start:
                     if (rs.Count == 0)
@@ -487,7 +594,8 @@ namespace ShinenginePlus
                         if (rs[0].Type == typeof(RippleEffect))
                         {
                             RhyStep mc = rs[0];
-                            new Thread(()=> {
+                            new Thread(() =>
+                            {
                                 Thread.Sleep((int)((60d / sb.BPM) * 1000d));
                                 new RippleEffect(30, 400, new System.Drawing.Point((int)mc.Position.X, (int)mc.Position.Y), DX.DC).PushTo(OpearArea);
                             }).Start();
@@ -495,7 +603,8 @@ namespace ShinenginePlus
                         if (rs[0].Type == typeof(Point))
                         {
                             RhyStep mc = rs[0];
-                            new Thread(() => {
+                            new Thread(() =>
+                            {
                                 Thread.Sleep((int)((60d / sb.BPM) * 1000d));
                                 int time_frame = (int)((60d / sb.BPM * mc.Time) * 60d);
                                 double left_change = (mc.Rect.Left - OpearArea.Range.Left) / time_frame;
@@ -503,7 +612,7 @@ namespace ShinenginePlus
                                 double right_change = (mc.Rect.Right - OpearArea.Range.Right) / time_frame;
                                 double bottom_change = (mc.Rect.Bottom - OpearArea.Range.Bottom) / time_frame;
 
-                                OpearArea.AddUpdateProcess(()=>
+                                OpearArea.AddUpdateProcess(() =>
                                 {
                                     var new_rect = OpearArea.Range;
                                     new_rect.Left += (float)left_change;
@@ -530,13 +639,24 @@ namespace ShinenginePlus
                 {
                     MessageBox.Show(e.ToString());
                 }
-              
+
 
             };
             sb.Start();
             TitleBar.Top();
             time_save = 0;
             double time_max = 0;
+            IntPtr mem_pos;
+            unsafe
+            {
+                byte* mem = (byte*)Marshal.AllocHGlobal(music_player.Out_buffer_size);
+                for (int x = 0; x < music_player.Out_buffer_size; x++)
+                {
+                    *(mem + x) = 0;
+                }
+
+                mem_pos = (IntPtr)mem;
+            }
             new Thread(() =>
             {
                 pv.Reset();
@@ -544,6 +664,7 @@ namespace ShinenginePlus
                 time_max = (music_player.abits[music_player.abits.Count - 1]?.time_base).Value;
                 foreach (var i in music_player.abits)
                 {
+                   
                     if (!ask_stop)
                     {
                         unsafe
@@ -551,8 +672,9 @@ namespace ShinenginePlus
                             try
                             {
                                 time_save = (i?.time_base).Value;
-                                
+
                                 //  sb.Accuracy((i?.time_base).Value);
+                                while (OpearArea.Freezing) AudioFramly.waveWrite((byte*)mem_pos, music_player.Out_buffer_size);
                                 AudioFramly.waveWrite((byte*)i?.data, music_player.Out_buffer_size);
                             }
                             catch (Exception e)
@@ -568,18 +690,23 @@ namespace ShinenginePlus
                 ask_stop = true;
                 sb?.Stop();
                 pv.Set();
+
+                this.Close();
             })
             { IsBackground = true }.Start();
             new Thread(() =>
             {
                 while (!ask_stop)
                 {
+                    while (OpearArea.Freezing) Thread.Sleep(1);
                     sb.Accuracy(time_save);
                     PB.Process = time_save / time_max;
                     Thread.Sleep(100);
                 }
             })
             { IsBackground = true }.Start();
+
+
         }
         double time_save = 0;
         private void Window_Drop(object sender, DragEventArgs e)
@@ -598,15 +725,15 @@ namespace ShinenginePlus
         public PerfectInfo(Layer layer, Direct2DWindow vm, System.Drawing.Point pos, int info,DeviceContext DC)
         {
             if (info == 0)
-                img = new BitmapImage("assets\\perfect.png");
-            else if (info == 1) img = new BitmapImage("assets\\great.png");
-            else if (info == 2) img = new BitmapImage("assets\\bad.png");
-            else img = new BitmapImage("assets\\miss.png");
+            { img = new BitmapImage("assets\\perfect.png"); MainWindow.combo.Change(1); }
+            else if (info == 1) { img = new BitmapImage("assets\\great.png"); MainWindow.combo.Change(1); }
+            else if (info == 2) { img = new BitmapImage("assets\\bad.png"); MainWindow.combo.Change(0); }
+            else { img = new BitmapImage("assets\\miss.png"); MainWindow.combo.text = "0\nCombo"; }
 
             int mark_n = 0;
             try
             {
-                mark_n = Convert.ToInt32(MainWindow.mark.text.Split(':')[1]);
+                mark_n = Convert.ToInt32(MainWindow.mark.text);
             } catch (Exception)
             {
                 mark_n = 0;
@@ -617,7 +744,7 @@ namespace ShinenginePlus
             else if (info == 2) mark_n += 5;
             else mark_n -= 5;
 
-            MainWindow.mark.text = "Mark:" + mark_n.ToString();
+            MainWindow.mark.text = mark_n.ToString();
 
             pos.X -= img.PixelSize.Width / 4;
             pos.Y -= img.PixelSize.Height / 4;

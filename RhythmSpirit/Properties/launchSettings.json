@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "RhythmSpirit": {
+      "commandName": "Project",
+      "commandLineArgs": "C:\\Users\\14980\\Desktop\\BigFish&Begonia",
+      "nativeDebugging": true
+    }
+  }
+}
