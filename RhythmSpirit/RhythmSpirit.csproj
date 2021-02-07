@@ -6,7 +6,7 @@
     <UseWPF>true</UseWPF>
     <SignAssembly>true</SignAssembly>
     <Platforms>AnyCPU;x86</Platforms>
-    <Version>0.4.2</Version>
+    <Version>0.4.3</Version>
     <Copyright>Acite, All right reserved</Copyright>
     <AssemblyOriginatorKeyFile>Acite.pfx</AssemblyOriginatorKeyFile>
   </PropertyGroup>

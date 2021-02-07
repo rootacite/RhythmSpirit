@@ -68,7 +68,7 @@ namespace ShinenginePlus
             else if (mark_rate < 0.75d && mark_rate >= 0.70d) return DoubleToRank(mark_rate) + "  A";
             else if (mark_rate < 0.70d && mark_rate >= 0.60d) return DoubleToRank(mark_rate) + "  B";
             else if (mark_rate < 0.60d && mark_rate >= 0.50d) return DoubleToRank(mark_rate) + "  C";
-            else return (mark_rate * 100d).ToString().Substring(0, 5) + "  D";
+            else return DoubleToRank(mark_rate) + "  D";
         }
     }
 }
