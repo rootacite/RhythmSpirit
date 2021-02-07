@@ -19,6 +19,11 @@ namespace ShinenginePlus
 
         static public string DoubleToRank(double mark)
         {
+            if (mark < 0)
+            {
+                return "00.00%";
+            }
+
             string _mark = (mark * 100d).ToString();
             if (!_mark.Contains('.'))
             {
