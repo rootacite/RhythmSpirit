@@ -13,6 +13,12 @@ namespace ShinenginePlus
         static public SharpDX.WIC.Bitmap Right = Direct2DHelper.LoadBitmap("assets\\right.png");
         static public SharpDX.WIC.Bitmap Up = Direct2DHelper.LoadBitmap("assets\\up.png");
         static public SharpDX.WIC.Bitmap Down = Direct2DHelper.LoadBitmap("assets\\down.png");
+
+        static public SharpDX.WIC.Bitmap MS_Brush = Direct2DHelper.LoadBitmap("assets\\MS_Brush.png");
+        static public SharpDX.WIC.Bitmap KS_Brush = Direct2DHelper.LoadBitmap("assets\\KS_Brush.png");
+        static public SharpDX.WIC.Bitmap ML_Brush = Direct2DHelper.LoadBitmap("assets\\ML_Brush.png");
+        static public SharpDX.WIC.Bitmap KL_Brush = Direct2DHelper.LoadBitmap("assets\\KL_Brush.png");
+
         static KeyPics()
         {
 
@@ -20,6 +26,11 @@ namespace ShinenginePlus
     }
     class MouseSinglePoint
     {
+        Brush CB(RenderTarget RT) 
+        {
+            using (SharpDX.Direct2D1.Bitmap Bp = Bitmap.FromWicBitmap(RT, KeyPics.MS_Brush)) 
+                return new SharpDX.Direct2D1.BitmapBrush(RT, Bp,new BitmapBrushProperties() { ExtendModeX=ExtendMode.Mirror, ExtendModeY = ExtendMode.Mirror });
+        }
         InteractiveObject btn = null;
         DrawingImage img = new DrawingImage(new System.Drawing.Size(138, 138));
         bool clicked = false;
@@ -44,7 +55,7 @@ namespace ShinenginePlus
                 if (frame > 30)
                 {
                     double r = 132 - 100d * ((90d - frame) / 60d);
-                    using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 0.2f, 1, 1)), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
+                    using (Brush b = CB(s), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
                     {
                         s.DrawEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(69, 69), (float)(r / 2), (float)(r / 2)), b, 4);
                         if (!clicked) s.FillEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(69, 69), 8, 8), c);
@@ -53,7 +64,7 @@ namespace ShinenginePlus
                 else
                 {
                     double r = 34 * (frame / 30d);
-                    using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 0.2f, 1, 1)))
+                    using (Brush b = CB(s))
                         s.FillEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(69, 69), (float)(r / 2), (float)(r / 2)), b);
                 }
                 s.EndDraw();
@@ -87,7 +98,7 @@ namespace ShinenginePlus
                             if (frame > 30)
                             {
                                 double r = 132 - 100d * ((90d - frame) / 60d);
-                                using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 0.2f, 1, 1)), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
+                                using (Brush b = CB(s), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
                                 {
                                     s.DrawEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(69, 69), (float)(r / 2), (float)(r / 2)), b, 4);
                                     if (!clicked) s.FillEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(69, 69), 8, 8), c);
@@ -96,7 +107,7 @@ namespace ShinenginePlus
                             else
                             {
                                 double r = 34 * (frame / 30d);
-                                using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 0.2f, 1, 1)))
+                                using (Brush b = CB(s))
                                     s.FillEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(69, 69), (float)(r / 2), (float)(r / 2)), b);
                             }
                             s.EndDraw();
@@ -125,7 +136,7 @@ namespace ShinenginePlus
                     if (frame > 30)
                     {
                         double r = 132 - 100d * ((90d - frame) / 60d);
-                        using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 0.2f, 1, 1)), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
+                        using (Brush b = CB(s), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
                         {
                             s.DrawEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(69, 69), (float)(r / 2), (float)(r / 2)), b, 4);
                             if (!clicked) s.FillEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(69, 69), 8, 8), c);
@@ -134,7 +145,7 @@ namespace ShinenginePlus
                     else
                     {
                         double r = 34 * (frame / 30d);
-                        using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 0.2f, 1, 1)))
+                        using (Brush b = CB(s))
                             s.FillEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(69, 69), (float)(r / 2), (float)(r / 2)), b);
                     }
                     s.EndDraw();
@@ -185,7 +196,11 @@ namespace ShinenginePlus
         bool uped = false;
         double frame = 90d;
         float opdivied = 0;
-
+        Brush CB(RenderTarget RT)
+        {
+            using (SharpDX.Direct2D1.Bitmap Bp = Bitmap.FromWicBitmap(RT, KeyPics.ML_Brush))
+                return new SharpDX.Direct2D1.BitmapBrush(RT, Bp, new BitmapBrushProperties() { ExtendModeX = ExtendMode.Mirror, ExtendModeY = ExtendMode.Mirror });
+        }
         public MouseLongPoint(DeviceContext DC, Layer layer, Direct2DWindow vm, System.Drawing.Point pos, UIElement w, double time, double speed = 1)
         {
             speed = 1 / speed;
@@ -204,7 +219,7 @@ namespace ShinenginePlus
                 if (frame > 30)
                 {
                     double r = 110 - 100d * ((90d - frame) / 60d);
-                    using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 1f, 0.2f, 1)), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
+                    using (Brush b = CB(s), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
                     {
                         s.DrawEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(80, 80), (float)(r / 2), (float)(r / 2)), b, 4);
                         if (!downed) s.FillEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(80, 80), 10, 10), c);
@@ -213,7 +228,7 @@ namespace ShinenginePlus
                 else
                 {
                     double r = 18 * (frame / 30d);
-                    using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 1f, 0.2f, 1)))
+                    using (Brush b = CB(s))
                         s.FillEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(80, 80), (float)(r / 2), (float)(r / 2)), b);
                 }
                 using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.6f, 0.6f, 0.6f, 0.4f)))
@@ -254,7 +269,7 @@ namespace ShinenginePlus
                             if (frame > 30)
                             {
                                 double r = 110 - 100d * ((90d - frame) / 60d);
-                                using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 1f, 0.2f, 1)), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
+                                using (Brush b = CB(s), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
                                 {
                                     s.DrawEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(80, 80), (float)(r / 2), (float)(r / 2)), b, 4);
                                     if (!downed) s.FillEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(80, 80), 10, 10), c);
@@ -263,7 +278,7 @@ namespace ShinenginePlus
                             else
                             {
                                 double r = 18 * (frame / 30d);
-                                using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 1f, 0.2f, 1)))
+                                using (Brush b = CB(s))
                                     s.FillEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(80, 80), (float)(r / 2), (float)(r / 2)), b);
                             }
                             using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.6f, 0.6f, 0.6f, 0.4f)))
@@ -296,7 +311,7 @@ namespace ShinenginePlus
                     if (frame > 30)
                     {
                         double r = 110 - 100d * ((90d - frame) / 60d);
-                        using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 1f, 0.2f, 1)), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
+                        using (Brush b = CB(s), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
                         {
                             s.DrawEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(80, 80), (float)(r / 2), (float)(r / 2)), b, 4);
                             if (!downed) s.FillEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(80, 80), 10, 10), c);
@@ -305,7 +320,7 @@ namespace ShinenginePlus
                     else
                     {
                         double r = 18 * (frame / 30d);
-                        using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 1f, 0.2f, 1)))
+                        using (Brush b = CB(s))
                             s.FillEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(80, 80), (float)(r / 2), (float)(r / 2)), b);
                     }
                     using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.6f, 0.6f, 0.6f, 0.4f)))
@@ -396,7 +411,11 @@ namespace ShinenginePlus
         float opdivied = 0;
 
         DeviceContext DC;
-
+        Brush CB(RenderTarget RT) 
+        {
+            using (SharpDX.Direct2D1.Bitmap Bp = Bitmap.FromWicBitmap(RT, KeyPics.KS_Brush))
+                return new SharpDX.Direct2D1.BitmapBrush(RT, Bp, new BitmapBrushProperties() { ExtendModeX = ExtendMode.Mirror, ExtendModeY = ExtendMode.Mirror });
+        }
         public KeyboardSinglePoint(DeviceContext DC, Layer layer, Direct2DWindow vm, System.Drawing.Point pos, UIElement w, Key key, string info, double speed = 1)
         {
             this.DC = DC;
@@ -445,7 +464,7 @@ namespace ShinenginePlus
                             if (frame > 30)
                             {
                                 double r = 132 - 100d * ((90d - frame) / 60d);
-                                using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(1, 0.2f, 0, 1)), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
+                                using (Brush b = CB(s), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
                                 {
                                     s.DrawEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(69, 69), (float)(r / 2), (float)(r / 2)), b, 4);
                                     if (!clicked)
@@ -472,7 +491,7 @@ namespace ShinenginePlus
                             else
                             {
                                 double r = 34 * (frame / 30d);
-                                using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(1, 0.2f, 0, 1)))
+                                using (Brush b = CB(s))
                                     s.FillEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(69, 69), (float)(r / 2), (float)(r / 2)), b);
                             }
                             wfactory.Dispose();
@@ -507,7 +526,7 @@ namespace ShinenginePlus
                     if (frame > 30)
                     {
                         double r = 132 - 100d * ((90d - frame) / 60d);
-                        using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(1, 0.2f, 0, 1)), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
+                        using (Brush b = CB(s), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
                         {
                             s.DrawEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(69, 69), (float)(r / 2), (float)(r / 2)), b, 4);
                             if (!clicked)
@@ -534,7 +553,7 @@ namespace ShinenginePlus
                     else
                     {
                         double r = 34 * (frame / 30d);
-                        using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(1, 0.2f, 0, 1)))
+                        using (Brush b = CB(s))
                             s.FillEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(69, 69), (float)(r / 2), (float)(r / 2)), b);
                     }
                     wfactory.Dispose();
@@ -608,6 +627,12 @@ namespace ShinenginePlus
         Key key;
         public KeyboardLongPoint(DeviceContext DC, Layer layer, Direct2DWindow vm, System.Drawing.Point pos, UIElement w, double time, Key key, string info, double speed = 1)
         {
+            Brush CB(RenderTarget RT)
+            {
+                using (SharpDX.Direct2D1.Bitmap Bp = Bitmap.FromWicBitmap(RT, KeyPics.KL_Brush))
+                    return new SharpDX.Direct2D1.BitmapBrush(RT, Bp, new BitmapBrushProperties() { ExtendModeX = ExtendMode.Mirror, ExtendModeY = ExtendMode.Mirror });
+            }
+
             this.DC = DC;
             speed = 1 / speed;
             var area = new SharpDX.Direct2D1.Ellipse(new RawVector2(pos.X, pos.Y), 80, 80);
@@ -658,7 +683,7 @@ namespace ShinenginePlus
                             if (frame > 30)
                             {
                                 double r = 110 - 100d * ((90d - frame) / 60d);
-                                using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 1f, 0.8f, 1)), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
+                                using (Brush b = CB(s), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
                                 {
                                     s.DrawEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(80, 80), (float)(r / 2), (float)(r / 2)), b, 4);
                                     if (!downed)
@@ -686,7 +711,7 @@ namespace ShinenginePlus
                             else
                             {
                                 double r = 18 * (frame / 30d);
-                                using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 1f, 0.8f, 1)))
+                                using (Brush b = CB(s))
                                     s.FillEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(80, 80), (float)(r / 2), (float)(r / 2)), b);
                             }
                             using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.6f, 0.6f, 0.6f, 0.4f)))
@@ -725,7 +750,7 @@ namespace ShinenginePlus
                     if (frame > 30)
                     {
                         double r = 110 - 100d * ((90d - frame) / 60d);
-                        using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 1f, 0.8f, 1)), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
+                        using (Brush b = CB(s), c = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.35f, 0.35f, 0.35f, 0.15f)))
                         {
                             s.DrawEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(80, 80), (float)(r / 2), (float)(r / 2)), b, 4);
                             if (!downed)
@@ -753,7 +778,7 @@ namespace ShinenginePlus
                     else
                     {
                         double r = 18 * (frame / 30d);
-                        using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0, 1f, 0.8f, 1)))
+                        using (Brush b = CB(s))
                             s.FillEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2(80, 80), (float)(r / 2), (float)(r / 2)), b);
                     }
                     using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(s, new RawColor4(0.6f, 0.6f, 0.6f, 0.4f)))

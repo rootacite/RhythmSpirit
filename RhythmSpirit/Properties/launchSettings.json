@@ -2,7 +2,7 @@
   "profiles": {
     "RhythmSpirit": {
       "commandName": "Project",
-      "commandLineArgs": "C:\\Users\\14980\\Desktop\\BigFish&Begonia",
+      "commandLineArgs": "C:\\Users\\14980\\Desktop\\RhythmSpirit\\BigFish&Begonia",
       "nativeDebugging": true
     }
   }

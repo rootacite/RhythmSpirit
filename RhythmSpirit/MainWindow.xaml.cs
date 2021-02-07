@@ -36,9 +36,11 @@ using Image = SharpDX.Direct2D1.Image;
 using SharpDX.DirectWrite;
 using TextAlignment = SharpDX.DirectWrite.TextAlignment;
 using System.IO;
+using LinearGradientBrush = SharpDX.Direct2D1.LinearGradientBrush;
 
 namespace ShinenginePlus
 {
+
     public static class DTExtension
     {
         static public bool isPaused = false;
@@ -151,7 +153,8 @@ namespace ShinenginePlus
     }
     public partial class MainWindow : Window
     {
-
+        string title_set_old = "";
+        bool onDeath = false;
         int uo = 0;
         List<Key> DownedKeys = new List<Key>();
         string[] pargs = Environment.GetCommandLineArgs();
@@ -201,6 +204,8 @@ namespace ShinenginePlus
         GroupLayer OpearArea;
         DrawableText title_set;
         InteractiveObject pause_button;
+        static public BloodBar bdbar;
+        DrawableText RankBar;
 
         ProcessBar PB;
         static public DrawableText combo;
@@ -209,9 +214,11 @@ namespace ShinenginePlus
         {
             try
             {
-                dc.Clear(new RawColor4(1, 1, 1, 1));
+              
+                    dc.Clear(new RawColor4(1, 1, 1, 1));
 
-                BackGround.Render();
+                    BackGround.Render();
+                
             }
             catch(Exception e)
             {
@@ -326,9 +333,23 @@ namespace ShinenginePlus
                 OpearArea.Freezing = !OpearArea.Freezing;
                 if (OpearArea.Freezing) { 
                     sb.Pause();
-                    
+                    title_set_old = title_set.text;
+                    title_set.text = "Pause";
+                    OpearArea.SetEffect((i, d) =>
+                    {
+                        SharpDX.Direct2D1.Effects.GaussianBlur Gaussian = new SharpDX.Direct2D1.Effects.GaussianBlur(d);
+
+                        Gaussian.SetInput(0, i, new RawBool());
+                        Gaussian.StandardDeviation = 15.0f;
+
+                        return Gaussian;
+                    });
                 }
-                else { sb.Resume(); }
+                else {
+                    title_set.text = title_set_old;
+                    sb.Resume();
+                    OpearArea.SetEffect(null);
+                }
             };
             pause_button.MouseEnter += (e, b) =>
             {
@@ -355,6 +376,13 @@ namespace ShinenginePlus
                 });
             };
 
+            bdbar = new BloodBar(DX.DC);
+
+            RankBar = new DrawableText(SharedSetting.GetRank(), "Arturito Slab", 24, DX.DC); ;
+            RankBar.Color = new RawColor4(0.85f, 0.85f, 0.85f, 0.75f);
+            RankBar.Range = new RawRectangleF(240, 40, 400, 60);
+            RankBar.ParagraphAlignment = ParagraphAlignment.Center;
+            RankBar.TextAlignment = TextAlignment.Center;
 
             title_set = new DrawableText("", "Arturito Slab", 22, DX.DC);
             title_set.Color = new RawColor4(0.1f, 0.1f, 0.1f, 1);
@@ -393,8 +421,11 @@ namespace ShinenginePlus
             PB.PushTo(TitleBar);
 
             OpearArea.PushTo(BackGround);
-            TitleBar.PushTo(BackGround);
+            TitleBar.PushTo(BackGround); 
             combo.PushTo(BackGround);
+            bdbar.PushTo(BackGround);
+            RankBar.PushTo(BackGround);
+
             DX.Run();
             updateTimer.Start();
 
@@ -568,6 +599,7 @@ namespace ShinenginePlus
             {
                 try
                 {
+                    RankBar.text = SharedSetting.GetRank();
                     if ((img as VideoSource)?.FrameRate != null ? (int)((img as VideoSource)?.FrameRate) == 29 : false)
                     {
                         if (Math.Abs((img as VideoSource).Position - time_save) > 0.1d)
@@ -576,7 +608,100 @@ namespace ShinenginePlus
                             Debug.WriteLine(((img as VideoSource).Position - time_save).ToString());
                         }
                     }
+                    if (bdbar.Per <= 0f&&!onDeath)
+                    {
+                        onDeath = true;
+                        sb.Pause();
+                        OpearArea.Freezing = true;
+                        float ff = 1f;
+                        BackGround.Color = new RawColor4(0,0,0,1);
+                        BackGround.SetEffect(
+                            (i, e) =>
+                            {
+                                if (ff > 0)
+                                {
+                                    var blEf = new SharpDX.Direct2D1.Effect(e, SharpDX.Direct2D1.Effect.Opacity);
 
+                                    blEf.SetInput(0, i, new RawBool());
+                                    blEf.SetValue(0, ff -= 0.02f);
+
+                                    return blEf;
+                                }
+                                else
+                                {
+                                    var blEf = new SharpDX.Direct2D1.Effect(e, SharpDX.Direct2D1.Effect.Opacity);
+
+                                    blEf.SetInput(0, i, new RawBool());
+                                    blEf.SetValue(0, ff);
+
+                                   OpearArea.Pop();
+                                    TitleBar.Pop();
+                                    bdbar.PopFrom();
+                                    RankBar.PopFrom();
+
+                                    var yad = new DrawableText("", "Arturito Slab", 85, DX.DC);
+                                    yad.Color = new RawColor4(1f, 1f, 1f, 1);
+                                    yad.Range = new RawRectangleF(340, 150, 940, 450);
+                                    yad.ParagraphAlignment = ParagraphAlignment.Center;
+                                    yad.TextAlignment = TextAlignment.Center;
+
+                                    yad.PushTo(BackGround);
+                                    yad.PushString("You are Dead.");
+                                    int width = 115, height = 45;
+                                    GDIBitmap gDIBitmap = new GDIBitmap(new System.Drawing.Size(width, height));
+                                    gDIBitmap.Graphics.Clear(System.Drawing.Color.FromArgb(55, 255, 255, 255));
+                                    gDIBitmap.Graphics.DrawRectangle(new System.Drawing.Pen(new System.Drawing.SolidBrush(System.Drawing.Color.White), 3.5f), new System.Drawing.Rectangle(0, 0, width, height));
+                                    gDIBitmap.Graphics.DrawString("Exit", new System.Drawing.Font("Arturito Slab",25), new System.Drawing.SolidBrush(System.Drawing.Color.White),new System.Drawing.RectangleF(0,5f,115,35f),new System.Drawing.StringFormat() { LineAlignment=System.Drawing.StringAlignment.Center,Alignment= System.Drawing.StringAlignment.Center });
+
+
+                                    var exit_button = new InteractiveObject(gDIBitmap, DX.DC);
+                                    exit_button.Size = new SharpDX.Size2(width, height);
+                                    exit_button.Position = new System.Drawing.Point((int)(640 - width / 2d), (int)(560 - height / 2d));
+                                    exit_button.PushTo(BackGround, this);
+                                    exit_button.MouseUp += (e, v) =>
+                                    {
+                                        this.Dispatcher.Invoke(()=> { this.Close(); });
+                                    };
+                                    exit_button.MouseEnter += (e, b) =>
+                                    {
+                                        (e as InteractiveObject).AddUpdateProcess(() =>
+                                        {
+                                            if ((e as InteractiveObject).isInArea && (e as InteractiveObject).Opacity > 0.3f)
+                                            {
+                                                (e as InteractiveObject).Opacity -= 0.05f;
+                                                return true;
+                                            }
+                                            return false;
+                                        });
+                                    };
+                                    exit_button.MouseLeft += (e, b) =>
+                                    {
+                                        (e as InteractiveObject).AddUpdateProcess(() =>
+                                        {
+                                            if (!(e as InteractiveObject).isInArea && (e as InteractiveObject).Opacity < 1f)
+                                            {
+                                                (e as InteractiveObject).Opacity += 0.05f;
+                                                return true;
+                                            }
+                                            return false;
+                                        });
+                                    };
+
+                                    BackGround.SetEffect((i,e)=> {
+                                        var blEf = new SharpDX.Direct2D1.Effect(e, SharpDX.Direct2D1.Effect.Opacity);
+
+                                        blEf.SetInput(0, i, new RawBool());
+                                        blEf.SetValue(0, ff <= 1f ? ff += 0.02f : 1);
+
+                                        return blEf;
+                                    });
+                                    return blEf;
+                                }
+                                
+                            });
+
+                        pause_button.PopFrom();
+                    }
 
                     frame_start:
                     if (rs.Count == 0)
@@ -674,7 +799,10 @@ namespace ShinenginePlus
                                 time_save = (i?.time_base).Value;
 
                                 //  sb.Accuracy((i?.time_base).Value);
-                                while (OpearArea.Freezing) AudioFramly.waveWrite((byte*)mem_pos, music_player.Out_buffer_size);
+                                while (OpearArea.Freezing) {
+                                    if (onDeath) goto endf;
+                                    AudioFramly.waveWrite((byte*)mem_pos, music_player.Out_buffer_size);
+                                }
                                 AudioFramly.waveWrite((byte*)i?.data, music_player.Out_buffer_size);
                             }
                             catch (Exception e)
@@ -684,14 +812,16 @@ namespace ShinenginePlus
 
                         }
                     }
+                    endf:
                     Marshal.FreeHGlobal((i?.data).Value);
                 }
                 AudioFramly.waveClose();
+                if (onDeath) return;
                 ask_stop = true;
                 sb?.Stop();
                 pv.Set();
-
-                this.Close();
+                this.Dispatcher.Invoke(()=> { this.Close(); });
+               
             })
             { IsBackground = true }.Start();
             new Thread(() =>
@@ -725,16 +855,17 @@ namespace ShinenginePlus
         public PerfectInfo(Layer layer, Direct2DWindow vm, System.Drawing.Point pos, int info,DeviceContext DC)
         {
             if (info == 0)
-            { img = new BitmapImage("assets\\perfect.png"); MainWindow.combo.Change(1); }
-            else if (info == 1) { img = new BitmapImage("assets\\great.png"); MainWindow.combo.Change(1); }
-            else if (info == 2) { img = new BitmapImage("assets\\bad.png"); MainWindow.combo.Change(0); }
-            else { img = new BitmapImage("assets\\miss.png"); MainWindow.combo.text = "0\nCombo"; }
+            { SharedSetting.PrefectCount += 1; img = new BitmapImage("assets\\perfect.png"); MainWindow.combo.Change(1); if (MainWindow.bdbar.Per+0.04d < 1) MainWindow.bdbar.Per += 0.02d; }
+            else if (info == 1) { SharedSetting.GreatCount += 1; img = new BitmapImage("assets\\great.png"); MainWindow.combo.Change(1); if (MainWindow.bdbar.Per + 0.01d < 1) MainWindow.bdbar.Per += 0.01d; }
+            else if (info == 2) { SharedSetting.BadCount += 1; img = new BitmapImage("assets\\bad.png"); MainWindow.combo.Change(0); }
+            else { SharedSetting.MissCount += 1; img = new BitmapImage("assets\\miss.png"); MainWindow.combo.text = "0\nCombo";if(MainWindow.bdbar.Per >0) MainWindow.bdbar.Per -= 0.1d; }
 
             int mark_n = 0;
             try
             {
                 mark_n = Convert.ToInt32(MainWindow.mark.text);
-            } catch (Exception)
+            }
+            catch (Exception)
             {
                 mark_n = 0;
             }
@@ -824,6 +955,39 @@ namespace ShinenginePlus
         {
             using (SolidColorBrush b = new SharpDX.Direct2D1.SolidColorBrush(HostDC, new RawColor4(0.7f, 0.7f, 0.7f, 1f - ((float)frame / (float)_time))))
                 HostDC.DrawEllipse(new SharpDX.Direct2D1.Ellipse(new RawVector2((float)pos.X, (float)pos.Y), (float)(_rele_r / 2d), (float)(_rele_r / 2d)), b, 3);
+        }
+    }
+
+    sealed public class BloodBar : RenderableObject
+    {
+        public double Per { get; set; } = 1.0d;
+        
+        public BloodBar(DeviceContext DC) : base(DC) 
+        {
+
+        }
+
+        public override void Render()
+        {
+            using (SolidColorBrush cb = new SolidColorBrush(HostDC, new RawColor4(1, 0, 0, 1)))
+                HostDC.DrawRectangle(new RawRectangleF(10, 40, 220, 60), cb,2.5f);
+
+            var gp = new SharpDX.Direct2D1.GradientStopCollection(
+                       HostDC,
+                       new SharpDX.Direct2D1.GradientStop[]
+                       {
+                            new SharpDX.Direct2D1.GradientStop
+                            { Color = new RawColor4(1, 0, 0, 1), Position = 0f },
+                            new SharpDX.Direct2D1.GradientStop
+                            { Color = new RawColor4(0, 1, 0, 1), Position = 1f }
+                       });
+
+            if (Per >= 0)
+                using (LinearGradientBrush lb = new LinearGradientBrush(HostDC, new LinearGradientBrushProperties() { StartPoint = new RawVector2(10, 40), EndPoint = new RawVector2(220, 60) }, gp))
+            {
+                HostDC.FillRectangle(new RawRectangleF(10, 40, (float)(10 +209* Per), 59), lb);
+            }
+            gp.Dispose();
         }
     }
 }
