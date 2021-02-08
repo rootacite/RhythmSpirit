@@ -203,6 +203,7 @@ namespace ShinenginePlus
         GroupLayer TitleBar;
         GroupLayer OpearArea;
         DrawableText title_set;
+        RenderableImage Dify;
         InteractiveObject pause_button;
         static public BloodBar bdbar;
         DrawableText RankBar;
@@ -237,9 +238,9 @@ namespace ShinenginePlus
             pv.Set();
             WindowHandle = new WindowInteropHelper(this).Handle;
 
-              
 
-            DX = new Direct2DWindow(new System.Drawing.Size((int)this.ActualWidth, (int)this.ActualHeight), WindowHandle,false) { AskedFrames=60};
+
+            DX = new Direct2DWindow(new System.Drawing.Size((int)this.ActualWidth, (int)this.ActualHeight), WindowHandle, false) { AskedFrames = SharedSetting.AskedFrame };
             BackGround = new BackGroundLayer(
                 new System.Drawing.Size((int)this.ActualWidth, (int)this.ActualHeight),
                 this,
@@ -378,13 +379,13 @@ namespace ShinenginePlus
 
             bdbar = new BloodBar(DX.DC);
 
-            RankBar = new DrawableText(SharedSetting.GetRank(), "Arturito Slab", 24, DX.DC); ;
+            RankBar = new DrawableText(SharedSetting.GetRank(), SharedSetting.Font, 24, DX.DC); ;
             RankBar.Color = new RawColor4(0.85f, 0.85f, 0.85f, 0.75f);
             RankBar.Range = new RawRectangleF(240, 40, 400, 60);
             RankBar.ParagraphAlignment = ParagraphAlignment.Center;
             RankBar.TextAlignment = TextAlignment.Center;
 
-            title_set = new DrawableText("", "Arturito Slab", 22, DX.DC);
+            title_set = new DrawableText("", SharedSetting.Font, 22, DX.DC);
             title_set.Color = new RawColor4(0.1f, 0.1f, 0.1f, 1);
             title_set.Range = new RawRectangleF(0, 0, 1280, 30);
             title_set.ParagraphAlignment = ParagraphAlignment.Center;
@@ -393,13 +394,13 @@ namespace ShinenginePlus
 
             title_set.PushTo(TitleBar);
 
-            mark = new DrawableText("", "Arturito Slab", 22, DX.DC);
+            mark = new DrawableText("", SharedSetting.Font, 22, DX.DC);
             mark.Color = new RawColor4(1f, 0.1f, 0.1f, 1);
             mark.Range = new RawRectangleF(20, 0, 1250, 30);
 
             mark.PushTo(TitleBar);
 
-            combo = new DrawableText("0\nCombo", "Arturito Slab", 35, DX.DC);
+            combo = new DrawableText("0\nCombo", SharedSetting.Font, 35, DX.DC);
             combo.Color = new RawColor4(0.85f, 0.85f, 0.85f, 0);
             combo.Range = new RawRectangleF(1050, 260, 1250, 360);
             combo.ParagraphAlignment = ParagraphAlignment.Center;
@@ -546,6 +547,16 @@ namespace ShinenginePlus
                 if (i.Name == "head")
                 {
                     sb.BPM = Convert.ToInt32(i.Attribute("BPM").Value.ToString(), 10);
+                    string Dy = i.Attribute("Difficulty").Value.ToString();
+                    BitmapImage bim;
+                    if (Dy == "Easy") { SharedSetting.Difficulty = Difficulty.Easy; bim = new BitmapImage("assets\\easy.png"); }
+                    else if (Dy == "Normal") { SharedSetting.Difficulty = Difficulty.Normal; bim = new BitmapImage("assets\\normal.png"); }
+                    else { SharedSetting.Difficulty = Difficulty.Hard; bim = new BitmapImage("assets\\hard.png"); }
+
+                   
+                    Dify = new RenderableImage(bim,DX.DC);
+                    Dify.Position = new System.Drawing.Point(611, 35);
+                    Dify.PushTo(BackGround);
                     continue;
                 }
                 int b = Convert.ToInt32(i.Attribute("Time").Value.ToString().Split(":")[0], 10);
@@ -638,8 +649,9 @@ namespace ShinenginePlus
                                     TitleBar.Pop();
                                     bdbar.PopFrom();
                                     RankBar.PopFrom();
+                                    Dify?.PopFrom();
 
-                                    var yad = new DrawableText("", "Arturito Slab", 85, DX.DC);
+                                    var yad = new DrawableText("", SharedSetting.Font, 85, DX.DC);
                                     yad.Color = new RawColor4(1f, 1f, 1f, 1);
                                     yad.Range = new RawRectangleF(340, 150, 940, 450);
                                     yad.ParagraphAlignment = ParagraphAlignment.Center;
@@ -651,7 +663,7 @@ namespace ShinenginePlus
                                     GDIBitmap gDIBitmap = new GDIBitmap(new System.Drawing.Size(width, height));
                                     gDIBitmap.Graphics.Clear(System.Drawing.Color.FromArgb(55, 255, 255, 255));
                                     gDIBitmap.Graphics.DrawRectangle(new System.Drawing.Pen(new System.Drawing.SolidBrush(System.Drawing.Color.White), 3.5f), new System.Drawing.Rectangle(0, 0, width, height));
-                                    gDIBitmap.Graphics.DrawString("Exit", new System.Drawing.Font("Arturito Slab",25), new System.Drawing.SolidBrush(System.Drawing.Color.White),new System.Drawing.RectangleF(0,5f,115,35f),new System.Drawing.StringFormat() { LineAlignment=System.Drawing.StringAlignment.Center,Alignment= System.Drawing.StringAlignment.Center });
+                                    gDIBitmap.Graphics.DrawString("Exit", new System.Drawing.Font(SharedSetting.Font,25), new System.Drawing.SolidBrush(System.Drawing.Color.White),new System.Drawing.RectangleF(0,5f,115,35f),new System.Drawing.StringFormat() { LineAlignment=System.Drawing.StringAlignment.Center,Alignment= System.Drawing.StringAlignment.Center });
 
 
                                     var exit_button = new InteractiveObject(gDIBitmap, DX.DC);

@@ -167,8 +167,12 @@ if (v.Key == Key.F1)
         private void Window_KeyUp(object sender, KeyEventArgs e)
         {
             if (Script == null) return;
-
-            if (e.Key == Key.F8)
+            if (e.Key == Key.F10)
+            {
+               
+            }
+            else
+        if (e.Key == Key.F8)
             {
                 Input input = new Input();
                 input.BOX.Text = "";

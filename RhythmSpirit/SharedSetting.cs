@@ -3,18 +3,36 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace ShinenginePlus
 {
+    public enum Difficulty
+    {
+        Easy,
+        Normal,
+        Hard
+    }
     public static class SharedSetting
     {
+        static public Difficulty Difficulty = Difficulty.Easy;
         static public int PrefectCount = 0;
         static public int GreatCount = 0;
         static public int BadCount = 0;
         static public int MissCount = 0;
+
+        static public int AskedFrame = 60;
+        static public string Font;
         static SharedSetting()
         {
+            XDocument script_obj = XDocument.Load("Setting.xml");
+            var des = script_obj.Root.Nodes();
 
+            foreach (XElement e in des)
+            {
+                if (e.Name == "FR") SharedSetting.AskedFrame = Convert.ToInt32(e.Value.ToString());
+                if (e.Name == "FONT") SharedSetting.Font = e.Value.ToString();
+            }
         }
 
         static public string DoubleToRank(double mark)
