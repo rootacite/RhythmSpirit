@@ -28,6 +28,21 @@ using System.Runtime.InteropServices;
 
 namespace RhythmMaker
 {
+    static public class EXElement
+    {
+        static public void Swap(this XElement element, int index1, int index2) 
+        {
+            var ix = element.Nodes().ToArray(); ;
+            var c = ix[index1];
+            var d = ix[index2];
+
+            c.AddAfterSelf(d);
+            c.Remove();
+
+            d.AddAfterSelf(c);
+            d.Remove();
+        }
+    }
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
@@ -42,7 +57,6 @@ namespace RhythmMaker
             InitializeComponent();
             FFmpegBinariesHelper.RegisterFFmpegBinaries();
             Preview_Entity.Show();
-
             DispatcherTimer trail = new DispatcherTimer();
             trail.Interval = TimeSpan.FromSeconds(0.03);
             trail.Tick += (e, v) =>
@@ -167,9 +181,11 @@ if (v.Key == Key.F1)
         private void Window_KeyUp(object sender, KeyEventArgs e)
         {
             if (Script == null) return;
-            if (e.Key == Key.F10)
+            if (e.Key == Key.F11)
             {
-               
+                var ems = Script.Root.Nodes().ToArray();
+                
+                Script.Root.Swap(1, 4);
             }
             else
         if (e.Key == Key.F8)
